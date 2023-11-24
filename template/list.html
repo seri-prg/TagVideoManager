@@ -1,0 +1,443 @@
+﻿<html>
+<head>
+<link rel="icon" href="data:,">
+<style>
+#base_layout {
+	position: relative;
+	display: flex;
+	flex-wrap:nowrap;
+	width: 100%;
+	height:100%;
+}
+
+#url_code {
+	position: absolute;
+	display: flex;
+	visibility: hidden;
+	width: 100%;
+	height:100%;
+	background: rgba(40, 40, 40, 0.75);
+	text-align: center;
+}
+
+#url_code img{
+	display: block;
+	position: relative;
+	width: 512px;
+	height:512px;
+	margin: auto;
+}
+
+
+#tag_list
+{
+	width: 200px; /*幅固定 */
+	flex-basis: 200px;
+	overflow:auto;
+}
+
+#icon_list
+{
+	flex: 1; /*幅可変 */
+	display: flex;
+	flex-direction: column;
+}
+
+#video_head {
+	flex-wrap:nowrap;
+	gap: 1px 1px;
+	text-align:center;
+}
+
+#video_head button.current {
+	color: #ffffff;
+	background: rgba(64, 64, 196, 1.0);
+}
+
+
+#video_info {
+	overflow:auto;
+	position: relative;	/*相対配置*/
+	display: flex;	/* この要素はflexコンテナとなり、子要素は自動的にflexアイテムとなる */
+	flex-direction: row;	/* 横並びに表示する */
+	flex-wrap: wrap;	/* 画面幅に収まらない場合は折り返す */
+	gap: 1px 1px;
+}
+.video_item {
+	/*
+	flex-grow: 1;
+	*/
+	position: relative;/*相対配置*/
+	aspect-ratio: 4/3;
+	width: 200px;
+	border: 1px solid #999;
+}
+
+.video_item img {
+   /*
+	height: 100%;
+	width: auto;
+	aspect-ratio: 4/3;
+	height: auto;
+	*/
+}
+
+#server_msg {
+	position: absolute;
+	transition: opacity 1s;
+	color: #080;
+	font-weight:700;
+	opacity: 1;
+	top: 0;
+	right: 0;
+}
+
+#server_msg.fade_out {
+	opacity: 0;
+}
+
+.tag_parts {
+	margin: 2px;
+	color: #fff;
+}
+
+
+.item_tag {
+	position: absolute;/*絶対配置*/
+	bottom: 0;
+	left: 0;
+}
+  
+.item_tag label {
+	background: rgba(40, 40, 173, 0.5);
+	padding: 1px;
+	margin: 1px;
+	color: #FFF;
+	border:0px;
+}
+
+#view_look {
+
+	background-color: rgba(40, 40, 190, 1);
+}
+
+#tag_remove {
+	display : none; /* 開始時は非表示 */
+	position: absolute;
+	bottom: 0px;
+}
+
+
+</style>
+</head>
+<body>
+<script src="./lib/common.js" charset="UTF8"></script>
+<script src="./lib/taglist.js" charset="UTF8"></script>
+<script>
+
+	// タグをメディアへドラッグ＆ドロップ時の処理
+	function OnDropTag(sendElem, receiveElem)
+	{
+		// console.log(sendElem.id + " => " + receiveElem.id + "!!");
+
+		// メディア１つ更新
+		RequestJson("{{root_url}}update_videoicon.custom_text?mt=" + receiveElem.id +"&t=" + sendElem.id, (json)=>
+		{
+			// タグ更新
+			RemoveChildAll(receiveElem);
+			CreateMediaOne(receiveElem, json.file_id, json.media_tag_list);
+
+
+			setupReceiveDrop(".video_item", OnDropTag); // ドロップ時の処理再設定
+			SetupImageAdjust(".video_img");	// 画像アジャスト系
+		});
+	}
+
+	// メディアリストを更新
+	function UpdateVideoList(offset, forceUpdateHeader = false)
+	{
+		const videoList = document.getElementById("video_info");
+		RemoveChildAll(videoList);	// 子を全て削除
+		videoList.scrollTop = 0;
+		const checks = getCheckedIdQuery(".chb");
+		RequestJson("{{root_url}}update_videolist.custom_text?s=" + checks + "&o=" + offset, (json)=>
+		{
+			AddMediaList("video_info", json); // メディアリスト更新
+			ShowServerMsg(json);
+
+			setupReceiveDrop(".video_item", OnDropTag);	// ドロップ時の処理再設定
+			SetupImageAdjust(".video_img");	// 画像アジャスト系
+
+			setupViewLook("view_look",OnLookMediaNext);		// 次のロード矩形が存在すれば登録
+
+			// チェックが1つ以上あれば削除ボタン表示
+			const elemText = document.getElementById("tag_remove");
+			elemText.style.display = (checks.length > 0) ? "block" : "none";
+			UpdateJumpBtm("video_head", offset, GetTotalCount(), forceUpdateHeader);	// ヘッダ更新
+		});
+	}
+
+
+	// タグのチェック変更イベント
+	function OnChangeCheckTag()
+	{
+		UpdateVideoList(0, true);
+	}
+
+	// タグを削除
+	function OnRemoveTag()
+	{
+		// チェックの入っている情報をクエリパラメータで取得
+		const checks = getCheckedIdQuery(".chb");
+		window.location.href = './{{list_url}}?rt=' + checks;
+	}
+
+
+	var s_total = 0;
+	var s_item_offset = 0;
+
+	// トータル数取得
+	function GetTotalCount()
+	{
+		return s_total;
+	}
+
+
+	// メディアの次のロードを表す矩形が表示されたなら
+	function OnLookMediaNext(entry)
+	{
+		var offset = s_item_offset; 
+		entry.target.remove();	// 次を削除
+
+		var msg = getCheckedIdQuery(".chb");	// チェックの入っているタグのクエリ
+
+		// メディア情報の追加読み込み
+		RequestJson("{{root_url}}update_videolist.custom_text?s=" + msg + "&o=" + offset, (json)=>
+		{
+			AddMediaList("video_info", json); // メディアリスト更新
+			ShowServerMsg(json);
+
+			setupReceiveDrop(".video_item", OnDropTag);	// ドロップ時の処理再設定
+			SetupImageAdjust(".video_img");	// 画像アジャスト系
+
+			setupViewLook("view_look",OnLookMediaNext);		// 次のロード矩形が存在すれば登録
+			UpdateJumpBtm("video_head", offset, GetTotalCount()); // ジャンプボタン更新
+		});
+
+		// console.log("veiw look !! " + offset);
+	}
+
+	// タグ追加ボタン押されたとき
+	function OnAddTag(msg)
+	{
+		var checkTags = getCheckedIdList(".chb"); // チェック状態を保存
+		// 既存のチェック状態は維持しながら更新する
+		RequestJson("{{root_url}}update_taglist.custom_text?at=" + msg, (json)=>
+		{
+			UpdateTagList("tag_checkList", json); // タグリスト更新
+			setCheckedId(".chb", checkTags); // タグのチェック状態を復帰
+			setupChangeTag(".chb", OnChangeCheckTag); // タグのチェック変更イベント登録
+			setupSendDrag(".tag_parts");	// タグのドラッグ＆ドロップ送信時処理
+			updateTagFilter("tag_text", ".tag_parts");	// タグリストの表示状態を更新
+		});
+	}
+
+	// ジャンプボタンを更新
+	function UpdateJumpBtm(headerName, offset, totalCount, forceUpdate = false)
+	{
+		var header = document.getElementById(headerName);
+		const currentIndex = Math.floor(offset / 200);
+		var oldCurrent = header.getAttribute("currentIndex");
+
+		// 表示更新がなければ終了
+		if (!forceUpdate && (oldCurrent == currentIndex))
+			return;
+
+		const maxIndex = Math.floor(totalCount / 200);
+		const startIndex = Math.max(0, currentIndex - 5);
+		const endIndex = Math.min(maxIndex, currentIndex + 5);
+
+		// 子要素を全て削除する
+		RemoveChildAll(header);
+
+		for(var i = startIndex; i <= endIndex; i++)
+		{
+			const btn = document.createElement('button');
+			btn.textContent = i+1;
+			btn.setAttribute("offset", i * 200);
+			if (i == currentIndex)
+			{
+				btn.classList.toggle("current");
+			}
+			btn.onclick = (element)=>
+			{
+				// メディアリストを更新
+				const offset = element.target.getAttribute("offset");
+				UpdateVideoList(offset);
+			};
+			header.appendChild(btn);
+		}
+
+		header.setAttribute("currentIndex", currentIndex);
+	}
+
+	// タグリスト初期値
+	const initJsonStr = `{{initTagString}}`;
+
+	// タグリストを更新
+	function UpdateTagList(targetId, jsonData)
+	{
+		var target = document.getElementById(targetId);
+		RemoveChildAll(target);
+		jsonData.forEach(element => 
+		{
+			const tag = document.createElement('div');
+			tag.className = "tag_parts";
+			tag.id = element.tag_id;
+			tag.style.backgroundColor = element.color;
+
+			const chb = document.createElement("input");
+			chb.type = "checkbox";
+			chb.id = element.tag_id;
+			chb.className = "chb";
+
+			const label = document.createElement("label");
+			label.innerText = element.name;
+			target.appendChild(tag);
+			tag.appendChild(chb);
+			tag.appendChild(label);
+		});
+	}
+
+	const initMediaJsonData = `{{initMediaString}}`;
+
+
+	// メディアのタグ設定
+	function UpdateMediaTag(tagElem, tags)
+	{
+		if (!tags)
+			return;
+
+		tags.forEach((tag_info) =>
+		{
+			const tag = document.createElement("label");
+			tag.innerText = tag_info.name;
+			tag.style.background = tag_info.color;
+			tagElem.appendChild(tag);
+		})
+	}
+
+
+	// メディア１つを生成
+	function CreateMediaOne(mediaItem, file_id, tag_list)
+	{
+		mediaItem.id = file_id;
+		const imgLink = document.createElement("a");
+		imgLink.href = "./video_player.html?mt=" + file_id;
+
+		const img = document.createElement("img");
+		img.className = "video_img";
+		img.src = "./" + file_id + ".mini_image"
+
+		const item_tag = document.createElement("dev");
+		item_tag.className = "item_tag";
+		UpdateMediaTag(item_tag, tag_list); // メディアにタグを追加
+
+		mediaItem.appendChild(imgLink);
+		imgLink.appendChild(img);
+		imgLink.appendChild(item_tag);
+	}
+
+
+	// メディアリスト追加
+	function AddMediaList(targetId, jsonData)
+	{
+		var target = document.getElementById(targetId);
+
+		s_total = jsonData.total; // メディアの総数保存
+		s_item_offset = jsonData.item_offset; // 開始位置
+
+		// console.log(s_total + " : " + s_item_offset);
+		jsonData.media_parts_list.forEach(element => 
+		{
+			// console.log(" file id : " + element.file_id);
+			const mediaItem = document.createElement('div');
+			mediaItem.className = "video_item";
+
+			CreateMediaOne(mediaItem, element.file_id, element.tag_list);
+			target.appendChild(mediaItem);
+		});
+
+
+		// 存在するなら削除
+		var vl = document.getElementById("view_look");
+		if (vl != null)
+		{
+			vl.remove();
+		}
+
+		if (jsonData.item_offset > 0)
+		{
+			const viewLook = document.createElement('div');
+			viewLook.id = "view_look";
+			viewLook.innerText = "Next.";
+			target.appendChild(viewLook);
+		}
+	}
+
+
+	// サーバーメッセージがあれば表示
+	function ShowServerMsg(json)
+	{
+		if ("server_msg" in json)
+		{
+			if (json.server_msg.length > 0)
+			{
+				ShowMsg("server_msg", json.server_msg, 4000);
+			}
+		}
+	}
+
+
+
+	document.addEventListener('DOMContentLoaded', function() 
+	{
+		UpdateTagList("tag_checkList", JSON.parse(initJsonStr));	// タグリスト更新
+		const mediaJson = JSON.parse(initMediaJsonData);
+		AddMediaList("video_info", mediaJson); // メディアリスト更新
+		ShowServerMsg(mediaJson);		// サーバーメッセージがあれば表示
+
+		setupDrop(".tag_parts", ".video_item", OnDropTag); // D&D登録
+		setupTagFilter("tag_text", ".tag_parts");		// タグのフィルタリング登録 
+		setupTagAdd("tag_text", "tag_add", OnAddTag);	// タグ追加ボタン
+		setupChangeTag(".chb", OnChangeCheckTag);		// タグのチェック変更イベント登録
+		setupViewLook("view_look",OnLookMediaNext);		// 任意の矩形が表示されたら
+
+		SetupImageAdjust(".video_img");	// 画像アジャスト系
+
+		// タグ削除
+		SetupConfirm("tag_remove", "{{tw_RemoveTagConfirm}}", OnRemoveTag);
+
+		UpdateJumpBtm("video_head", 0, GetTotalCount());	// ジャンプヘッダ更新
+	
+	}, false);
+</script>
+<title>Tag Video Manager</title>
+<div id="base_layout">
+	<div id="server_msg"><!-- サーバからのメッセージを表示 --></div>
+	<div id="tag_list">
+		<button onClick="toggleVisible('url_code')" >{{tw_urlCode}}<!-- URLコード--></button>
+		<input type="text" id="tag_text" ><button id="tag_add">{{tw_AddTag}}<!--タグの追加--></button><br>
+		<div id="tag_checkList"><!-- ここにタグリストを配置 --></div><br>
+		<button id="tag_remove" >{{tw_RemoveTag}}<!--タグの削除--></button><br>
+	</div>
+	<div id="icon_list">
+		<div id="video_head"><!-- ここにヘッダを配置 --></div>
+		<div id="video_info"><!-- メディアリスト展開 --></div>
+	</div>
+	<!-- スマホ用URL -->
+	<button id="url_code" onClick="toggleVisible('url_code')" ><img src="./start.png" /></button>
+</div>
+
+</body>
+</html>
