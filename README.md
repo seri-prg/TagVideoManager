@@ -22,3 +22,6 @@ PC内の動画にタグをつけることでたくさんの動画から見たい
 アプリを起動しておけばPC以外のスマートフォン等でも表示できます。
 ![view_android](https://github.com/seri-prg/TagVideoManager/assets/59523766/eced9722-9e20-4a21-9139-f60b2e99cfb7)
 この辺はまだ作り途中ですが。。
+
+## 使い方
+[wiki](https://github.com/seri-prg/TagVideoManager/wiki)をご参照下さい。
