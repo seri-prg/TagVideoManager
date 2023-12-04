@@ -46,6 +46,54 @@
 	overflow:auto;
 }
 
+#vr_video{
+	position: relative;	/*相対配置*/
+	flex: 1;
+	flex-shrink: 1;
+	width:100%;
+	height:100%;
+	overflow:auto;
+}
+
+#vr_video_editor {
+	position: absolute;
+	width:99%;
+	bottom: 2;
+	left: 3;
+	background: rgba(30, 30, 123, 0.7);
+	margin: auto;
+}
+
+#vr_ed_time {
+	color:#FFF;
+}
+
+#vr_ed_progress {
+	position: relative;	/*相対配置*/
+	width:100%;
+}
+
+#vr_ed_mute {
+	/*
+	position: absolute;
+	text-align: right;
+	*/
+	display: inline-block;
+	margin-left: auto;
+}
+
+#vr_video_editor button {
+	background: transparent;
+	border: none;
+}
+
+
+#renderCanvas {
+	width: 100%;
+	height: 100%;
+	touch-action: none;
+}
+
 
 #play_menu {
 	position: relative;	/*相対配置*/
@@ -97,7 +145,14 @@
 <script src="./lib/common.js" charset="UTF8"></script>
 <script src="./lib/media_player.js" charset="UTF8"></script>
 <script src="./lib/taglist.js" charset="UTF8"></script>
+<script src="./lib/play_point.js" charset="UTF8"></script>
+<script src="./babylon_6.31.0/babylon.js" charset="UTF8"></script>
+<script src="./lib/vr.js" charset="UTF8"></script>
+
+
 <script>
+	var _playPoint = null;	// プレイポイント
+	var _videoSwitcher = null; // 動画切り替え
 
 	// タグ追加ボタン押されたとき
 	function OnAddTag(msg)
@@ -108,14 +163,15 @@
 		{
 			UpdateTagList("tag_checkList", json); // タグリスト更新
 			updateTagFilter("tag_text", ".tag_parts");	// タグリストの表示状態を更新
-			SetupBtnPlayPoint(".tag_parts", "video", OnAddPlayPoint); // プレイポイント追加ボタン
+			SetupBtnPlayPoint(".tag_parts",  OnAddPlayPoint); // プレイポイント追加ボタン
 		});
 	}
 
 	// プレイポイント追加ボタン押下時
-	function OnAddPlayPoint(elem, currentTime)
+	function OnAddPlayPoint(elem)
 	{
-		RequestUpdatePlayPoint("&t=" + elem.id + "&ti=" + currentTime);
+		const video = _videoSwitcher.getCurrentVideo();
+		RequestUpdatePlayPoint("&t=" + elem.id + "&ti=" + video.currentTime);
 	}
 
 	// プレイポイント削除処理
@@ -130,44 +186,11 @@
 	{
 		RequestJson("{{root_url}}video_update_play_point.custom_text?mt={{file_id}}" + updateQuery, (json)=>
 		{
-			RemoveChildAll(document.getElementById("play_menu"));
-			UpdatePlayPoint("play_menu", json); // プレイポイント更新
-
-			SetupTreeView(".caret", ".nested", OnChangeTreeNode);	// tree view登録
-			SetupPlayVideo(".play_btn", "video", "play_time", OnSelectPlayPoint);	// 再生位置登録
+			_playPoint.update(json);
 			HideElem("tag_remove");	// 削除ボタンをoff
 		});
 	}
 
-
-
-	var lastSelectPoint = null;
-	// 再生開始位置選択時
-	function OnSelectPlayPoint(elem, currentTime)
-	{
-		if (lastSelectPoint != null)
-		{
-			lastSelectPoint.setAttribute("border", 0);
-		}
-
-		var name = elem.getAttribute("tag_name");
-		var dispTime = elem.getAttribute("play_disp");
-		elem.setAttribute("border", "5px");
-		lastSelectPoint = elem;
-
-		// タグの削除
-		UpdatePlayPointRemoveBtn("tag_remove", "rl", "{{tw_RemoveTag}}[" + name + "/" + dispTime+ "]", elem.id);
-	}
-
-
-	// treeviewのノード開閉時
-	function OnChangeTreeNode(nodeElem)
-	{
-		// タグ全体を削除
-		UpdatePlayPointRemoveBtn("tag_remove", "rla","{{tw_delAll}}[" + nodeElem.textContent+ "]", nodeElem.id);
-
-		console.log("remove tag_id:" + nodeElem.id);
-	}
 
 	// 動画を管理から外す
 	function OnRemoveVideo()
@@ -195,60 +218,6 @@
 	}
 
 
-	function UpdatePlayPoint(targetId, jsonData)
-	{
-		var target = document.getElementById(targetId);
-		const tagTimeBase = document.createElement("ul");
-		tagTimeBase.id = "tag_time_base";
-
-		// tag毎の処理
-		jsonData.tag_list.forEach(element => 
-		{
-			const group = document.createElement('li');
-			const caret = document.createElement('span');
-			caret.className = "caret";
-			caret.id = element.id;
-			caret.innerText = element.name;
-			const nested = document.createElement('ul');
-			nested.className = "nested";
-			nested.setAttribute("tag_name", element.name);
-
-			// 時間ごとの処理
-			element.time_list.forEach(t => 
-			{
-				if (t.second <= 0.0001)
-					return;
-
-				const play_rect = document.createElement('div');
-				play_rect.className = "play_rect";
-
-				const play_btn = document.createElement('img');
-				play_btn.className = "play_btn";
-				play_btn.id = t.id;
-				play_btn.src="./"+ t.link_img;
-				play_btn.setAttribute("tag_name", element.name);
-				play_btn.setAttribute("play_time", t.second);
-				play_btn.setAttribute("play_disp", t.disp);
-				
-				const play_rect_time = document.createElement('div');
-				play_rect_time.className = "play_rect_time";
-				play_rect_time.innerText = t.disp;
-
-				play_rect.appendChild(play_btn);
-				play_rect.appendChild(play_rect_time);
-				nested.appendChild(play_rect);
-				nested.appendChild(document.createElement("br"));
-			});
-
-			group.appendChild(caret);
-			group.appendChild(nested);
-
-			tagTimeBase.appendChild(group);
-		});
-
-		target.appendChild(tagTimeBase);
-	}
-
 	// サムネイル更新
 	function UpdateThumbnail()
 	{
@@ -257,28 +226,410 @@
 	}
 
 
+	// プレイポイントのセットアップ
+	function SetupPlayPoint()
+	{
+		var playPoint = new PlayPoint();
+		playPoint.setTarget("play_menu", "video");
+
+		// プレイポイント選択時
+		 playPoint.onSelect = (elem, currentTime) => {
+			var name = elem.getAttribute("tag_name");
+			var dispTime = elem.getAttribute("play_disp");
+			// タグ削除ボタン更新
+			UpdatePlayPointRemoveBtn("tag_remove", "rl", "{{tw_RemoveTag}}[" + name + "/" + dispTime+ "]", elem.id);
+		};
+
+		// タグ開閉時
+		 playPoint.onChangeTagNode = (nodeElem) => {
+			// タグ全体を削除
+			UpdatePlayPointRemoveBtn("tag_remove", "rla","{{tw_delAll}}[" + nodeElem.textContent+ "]", nodeElem.id);
+		};
+
+		return playPoint;
+	}
+
+	// 自前動画操作
+	class CustomVideoControl {
+		_video = null;
+		_timeElem = null; // 再生時間表示
+		_progressElem = null; // シークバー
+		_progressMoving = false; // シークバー操作中
+		_videoPlayedState = false; // シークバーが操作される前に動画が再生状態だったか
+		_volumeElem = null;
+		_muteElem = null;
+		_isMute = false; // ミュート中か否か
+		_lastMuteVolume = 0; // ミュートが押された時のボリューム
+		_speedBarElem = null; 
+		_cameraFov = null;
+
+		_bbRender = null; // 3Dレンダラ
+		_iconPlay = null;
+		_iconPause = null;
+		_iconSound = null;
+		_iconSoundMute = null;
+
+
+		// 秒を00:00:00の表記に変換
+		static getDispTime(time)
+		{
+			const totalSec = Math.floor(time);
+			const sec = totalSec % 60; // 秒
+			const min = Math.floor(totalSec / 60) % 60; // 分
+			const hour = Math.floor(totalSec / 3600); // 分
+
+			return hour.toString().padStart( 2, '0') + ":" + 
+					min.toString().padStart( 2, '0') + ":" + 
+					sec.toString().padStart( 2, '0');
+		}
+
+
+
+		// ポーズなら再生アイコン、再生中なら停止アイコンを表示
+		#showPlayIcon(isPause) {
+			this._iconPlay.style.display = (isPause) ? "block" : "none";
+			this._iconPause.style.display = (isPause) ? "none" : "block";
+		}
+
+
+		// ビデオの状態から表示を更新
+		updateVideoInfo()
+		{
+			if (this._video != null) {
+				this._volumeElem.value = this._video.volume * 100;	// ボリューム設定
+				this.#showPlayIcon(this._video.paused);
+			}
+		}
+
+		setup(setObj)
+		{
+			this._video = setObj.videoElem;
+			
+			this._timeElem = document.getElementById(setObj.timeIdName);
+			this._progressElem = document.getElementById(setObj.progressIdName);
+			this._volumeElem = document.getElementById(setObj.volumeIdName);
+			this._muteElem = document.getElementById(setObj.muteIdName);
+			this._iconPlay = document.getElementById(setObj.playImageIdName); // 再生アイコン
+			this._iconPause= document.getElementById(setObj.pauseImageIdName); // 停止アイコン
+			this._iconSound = document.getElementById(setObj.soundImageIdName); // 再生アイコン
+			this._iconSoundMute= document.getElementById(setObj.muteImageIdName); // 停止アイコン
+			this._speedBarElem= document.getElementById(setObj.speedBarIdName); // スピードバー
+
+			this._bbRender = setObj.bbRender;
+
+			// コントローラーの表示on/off
+			var editor = document.getElementById(setObj.editorIdName);
+			editor.onmouseenter = (elem) => {
+				elem.target.style.opacity  = 1;
+			}
+			editor.onmouseleave = (elem) => {
+				// 非表示にするのは再生中の時だけ
+				if (!this._video.paused) {
+					elem.target.style.opacity  = 0.0;
+				}
+			}
+
+
+			// カメラの距離スライダー
+			this._cameraFov = document.getElementById(setObj.cameraBarIdName);
+			this._cameraFov.oninput = (elem) => {
+				console.log("camera : " + elem.target.value * 0.01);
+				this._bbRender.setFovMultiplier(elem.target.value * 0.01);
+			}
+			// カメラの距離をデフォルトに戻す
+			document.getElementById(setObj.cameraResetIdName).onclick = ()=> {
+				this._bbRender.setFovMultiplier(1.0);
+				this._cameraFov.value = 100;
+			};
+
+
+			// 再生速度リセット
+			document.getElementById(setObj.speedResetIdName).onclick = (elem) => {
+				this._video.playbackRate = 1.0;
+				this._speedBarElem.value = this._video.playbackRate * 100;
+			}
+
+			// ビデオの状態から表示を更新
+			this.updateVideoInfo();
+
+
+			// 再生のon/off
+			document.getElementById(setObj.play).onclick = (elem) => {
+				var target = elem.target;
+				if (this._video.paused)	{
+					this._video.play();
+				} else {
+					this._video.pause();
+				}
+			};
+
+			this._video.onplay = () =>{
+				this.#showPlayIcon(false);
+			}
+
+			this._video.onpause = () =>{
+				this.#showPlayIcon(true);
+			}
+
+			// 動画の再生時間変更
+			this._video.ontimeupdate = ()=>{
+				this._timeElem.textContent
+							 = CustomVideoControl.getDispTime(this._video.currentTime) + " / " +
+								CustomVideoControl.getDispTime(this._video.duration);
+
+				// シークバーを動かしていない場合は設定
+				if (!this._progressMoving) {
+					this._progressElem.max = this._video.duration * 10;	// 0.1秒単位
+					this._progressElem.value = this._video.currentTime * 10;
+				}
+			}
+
+			this._video.onvolumechange = ()=>{
+				// 音量によってアイコン表示を変更
+				if (this._video.volume > 0.0) {
+					this._iconSoundMute.style.display = "none";
+					this._iconSound.style.display = "block";
+				} else {
+					this._iconSound.style.display = "none";
+					this._iconSoundMute.style.display = "block";
+				}
+			}
+
+
+			// スピードバー変更時
+			this._speedBarElem.oninput = ()=>{
+				this._video.playbackRate = this._speedBarElem.value * 0.01;
+			}
+
+			// シークバー移動中
+			this._progressElem.oninput = () => {
+				// シークバー動かし始め奈良
+				if (!this._progressMoving) {
+					this._videoPlayedState = !this._video.paused; // 直前の再生状態を保存
+					this._video.pause();
+					this._progressMoving = true;
+				}
+				this._video.currentTime = this._progressElem.value * 0.1;
+			}
+			// シークバー移動終了時
+			this._progressElem.onchange = () => {
+				this._progressMoving = false;
+				if (this._videoPlayedState)	{
+					this._video.play();
+				}
+			}
+
+			// ミュートボタン
+			this._muteElem.onclick = () => {
+				// ミュートだった
+				if (this._isMute) {
+					this._video.volume = this._lastMuteVolum; // ボリューム復帰
+				// ミュートでなかった
+				} else {
+					this._lastMuteVolum = this._video.volume; // ボリュームの保存
+					this._video.volume = 0.0;
+				}
+
+				this._volumeElem.value = this._video.volume * 100;	// ボリュームバーを更新
+				this._isMute = !this._isMute; // ミュート状態を切り替え
+			}
+
+
+			// ボリューム
+			this._volumeElem.oninput = () => {
+				this._video.volume = this._volumeElem.value * 0.01;
+
+				// ボリュームが更新されたならミュート状態会場
+				if (this._video.volume > 0.0) {
+					this._isMute = false;
+				}
+			};
+		}
+	}
+
+
+
+
+	/*
+		動画切り替え
+	*/
+	class VideoSwitcher	{
+		_normal = true; // 通常動画
+		_normalElem = null;
+		_vrElem = null;
+		_bbRender = null; // VR用レンダラ
+		_playPoint = null;
+		_customVideoControl = null; // VR動画用コントローラ
+
+		// 現在の操作対象動画を取得
+		getCurrentVideo()
+		{
+			if (this._normal) {
+				return this._normalElem;
+			}
+
+			if (this._bbRender != null) {
+				return this._bbRender.getVideoElem();
+			}
+			return null;
+		}
+
+
+		// セットアップ
+		setup(normalName, vrName, playPoint) {
+			this._normalElem = document.getElementById(normalName);
+			SetupKeepVolume(this._normalElem); //ボリューム保存セットアップ
+
+			this._vrElem = document.getElementById(vrName);
+			this._vrElem.onwheel = () =>{}; // マウスホイールイベントを握りつぶす
+			this._playPoint = playPoint; // プレイポイント
+			this.#updateShow();
+
+			this.#setupUI();
+		}
+
+
+
+		// 選択中のものを取得
+		static getSelectString(elemName)
+		{
+			const target = document.getElementById(elemName);
+			var selects = target.selectedOptions
+			return (selects.length > 0) ? selects[0].value : "";
+		}
+
+		// VRの設定更新
+		#updateHalf()
+		{
+			const select = VideoSwitcher.getSelectString("videoHalf");
+			console.log(select);
+			this._bbRender.setHalf(select == "180");
+		}
+
+		// VRのソース設定更新
+		#updateVideoMode()
+		{
+			const select = VideoSwitcher.getSelectString("videoMode");
+			console.log(select);
+			this._bbRender.setVideoModeFromString(select);
+		}
+
+		// UIセットアップ
+		#setupUI()
+		{
+			// 180 or 360
+			document.getElementById("videoHalf").onchange = () => {this.#updateHalf(); }
+			// texture mode
+			document.getElementById("videoMode").onchange = () => { this.#updateVideoMode();};
+		}
+
+
+		#updateShow()
+		{
+			if (this._normal)
+			{
+				document.getElementById("vr_edit").style.display = "none";
+				this._normalElem.style.display = "block";
+				this._vrElem.style.display = "none";
+				if (this._bbRender != null)
+				{
+					this._bbRender.getVideoElem().pause();
+				}
+				PullVolume(this._normalElem);
+				this._playPoint.setControlVideo(this._normalElem);
+			}
+			else
+			{
+				document.getElementById("vr_edit").style.display = "inline";
+				this._vrElem.style.display = "block";
+				this.#setupVr();
+				this._normalElem.style.display = "none";
+				this._normalElem.pause();
+
+				if (this._bbRender != null) {
+					var video = this._bbRender.getVideoElem();
+					if (video != null) {
+						PullVolume(video);
+						this._playPoint.setControlVideo(video);
+					}
+
+					if (this._customVideoControl != null) {
+						this._customVideoControl.updateVideoInfo();
+					}
+				}
+			}
+		}
+
+		#setupVr()
+		{
+			if (this._bbRender == null)
+			{
+				this._bbRender = new BBRender();
+				this._bbRender.setup("renderCanvas", (render)=> {
+					this._bbRender.play("{{file_id}}.custom_video");
+					this.#updateHalf();					// 動画の状態を現在のものに更新
+					this.#updateVideoMode();			// 動画の状態を現在のものに更新
+					SetupKeepVolume(this._bbRender.getVideoElem()); //ボリューム保存セットアップ
+					this._playPoint.setControlVideo(this._bbRender.getVideoElem());
+
+					this._customVideoControl = new CustomVideoControl();
+					this._customVideoControl.setup({
+						bbRender : this._bbRender,
+						videoElem : this._bbRender.getVideoElem(),
+						editorIdName : "vr_video_editor", // ベース位置
+						play : "vr_ed_play_stop",
+						timeIdName : "vr_ed_time",
+						progressIdName : "vr_ed_progress", // シークバー
+						volumeIdName : "vr_ed_volume", // ボリュームシークバー
+						muteIdName : "vr_ed_mute",	// ミュートボタン
+						playImageIdName : "vr_ed_img_play", // 再生アイコン
+						pauseImageIdName : "vr_ed_img_pause", // 停止アイコン
+						soundImageIdName : "vr_ed_img_sound", // 音ありアイコン
+						muteImageIdName : "vr_ed_img_mute",	// ミュートアイコン
+
+						speedBarIdName : "vr_ed_speed",		// スピードスライダー
+						speedResetIdName :"vr_ed_speed_reset",	// スピード初期値ボタン
+
+						cameraBarIdName : "vr_ed_camera",
+						cameraResetIdName : "vr_ed_camera_reset"
+					});
+				});
+			}
+		}
+
+		// 表示変更
+		toggle() {
+			this._normal = !this._normal;
+			this.#updateShow();
+		}
+	}
+
+
+	// VR動画と切り替え
+	function ToggleVrMode()
+	{
+		_videoSwitcher.toggle();
+	}
+
 	document.addEventListener('DOMContentLoaded', function() 
 	{
+		_playPoint = SetupPlayPoint(); // プレイポイントのセットアップ
+
+		_videoSwitcher = new VideoSwitcher();	// 動画切り替え
+		_videoSwitcher.setup("video", "vr_video", _playPoint);
+
+
 		UpdateTagList("tag_checkList", JSON.parse(initJsonStr)); // タグリスト更新
-		// UpdatePlayPoint("play_menu", JSON.parse(initPlayPointJsonStr)); // プレイポイント更新
-
-
-		// 途中再生関係
-		SetupTreeView(".caret", ".nested", OnChangeTreeNode);	// tree view登録
-		SetupPlayVideo(".play_btn", "video", "play_time", OnSelectPlayPoint);	// 再生位置登録
 
 		// タグ追加関係
 		setupTagFilter("tag_text", ".tag_parts");		// タグのフィルタリング登録 
 		setupTagAdd("tag_text", "tag_add", OnAddTag);	// タグ追加ボタン
 
-		SetupBtnPlayPoint(".tag_parts", "video", OnAddPlayPoint); // プレイポイント追加ボタン
+		SetupBtnPlayPoint(".tag_parts", OnAddPlayPoint); // プレイポイント追加ボタン
 		SetupPlayPointRemoveBtn("tag_remove", OnRemovePlayPoint); // プレイポイント削除ボタン
 
 		// 動画を管理から外す際の確認
 		SetupConfirm("remove_video", "{{tw_RemoveMediaConfirm}}", OnRemoveVideo);
-
-		SetupKeepVolume("video"); //ボリューム保存セットアップ
-
 
 		// プレイポイントの更新リクエスト
 		// 初回は処理が重いのでページ遷移してからリクエストかける。
@@ -296,12 +647,41 @@
 <div id="video_area" >
 	<div id="video_head_btn">
 		<button onclick="UpdateThumbnail()">{{tw_setThumbnail}}<!--サムネイルに設定--></button>
+		<button onclick="ToggleVrMode()">{{tw_toggleVr}}切り替え<!--VRモードに切り替え--></button>
+		<span id="vr_edit">
+			<select id="videoHalf">
+				<option value='180' selected>180</option>
+				<option value="360" >360</option>
+			</select>
+			<select id="videoMode">
+				<option value='MODE_MONOSCOPIC' >全画面</option>
+				<option value="MODE_SIDEBYSIDE" selected>左右分割</option>
+				<option value="MODE_TOPBOTTOM">上下分割</option>
+			</select>
+			<button id="urlCode">URL</button>
+		</span>
+
 		<button onclick="callHtml('{{root_url}}{{file_id}}.direct_open')">{{file_path}}</button>
 	</div>
-	<video id="video" controls autoplay playsinline>
-		<source class="video_source" src="{{file_id}}.custom_video">
-		<source class="video_source" src="{{file_id}}.direct_video">
+
+	<!-- 通常動画用 -->
+	<video id="video" type="video/mp4" controls autoplay playsinline>
+		<source class="video_source" src="{{file_id}}.custom_video" type="video/mp4">
+		<source class="video_source" src="{{file_id}}.direct_video" type="video/mp4">
 	</video>
+
+	<!-- VR 動画用 -->
+	<div id="vr_video">
+		<canvas id="renderCanvas"><!--VR動画用エリア--></canvas>
+		<div id="vr_video_editor">
+			<button id="vr_ed_play_stop"><img src="./icon/icon_play.png" id="vr_ed_img_play" /><img src="./icon/icon_pause.png" id="vr_ed_img_pause" /></button>
+			<label id="vr_ed_time">0:00/99:99</label>
+			<input type="range" id="vr_ed_volume" min="0" max="100" step="1"><button id="vr_ed_mute"><img src="./icon/icon_sound.png" id="vr_ed_img_sound" /><img src="./icon/icon_sound_mute.png" id="vr_ed_img_mute" /></button>
+			<input type="range" id="vr_ed_speed" min="0" max="500" value="100" step="1"><button id="vr_ed_speed_reset"><img src="./icon/icon_timer.png" /></button>
+			<input type="range" id="vr_ed_camera" style="display:none;" min="0" max="200" value="100" step="1"><button id="vr_ed_camera_reset"><!-- <img src="./icon/icon_camera.png" /> --></button><br>
+			<input type="range" id="vr_ed_progress" min="0" max="500" step="1">
+		</div>
+	</div>
 
 	<!-- タグ登録ボタン -->
 	<div id="tag_list">

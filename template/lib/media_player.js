@@ -1,97 +1,23 @@
-/*
-	  var v = document.getElementById('video');
-	  var state = document.getElementById('state');
-	  //ロード開始
-	  v.addEventListener('loadedmetadata', function() {
-		state.textContent = 'ロードを開始しました';
-	  })
-	  //読み込み完了
-	  v.addEventListener('loadeddata', function() {
-		state.textContent = '読み込み完了しました';
-	  })
-	  //再生可能
-	  v.addEventListener('canplay', function() {
-		state.textContent = '再生可能です';
-	  })
-	  //再生中
-	  v.addEventListener('playing', function() {
-		state.textContent = '再生中です';
-		})
-
-
-*/
-
-
-
-
-
-// ツリービュー用設定
-function SetupTreeView(className, nestedClass, callback)
-{
-    var tagList = document.querySelectorAll(className);
-
-    // ノードを展開する
-    function childActive(target, nestedClass)
-    {
-        target.parentElement.querySelector(nestedClass).classList.toggle("active");
-        target.classList.toggle("caret-down");
-    }
-
-    tagList.forEach((i) =>
-    {
-        childActive(i, nestedClass);
-        CheckDuplicate(i, "treeview_nested", ()=>
-        {
-            i.addEventListener("click", function()
-            {
-                childActive(this, nestedClass);
-                callback(this);
-            });
-        });
-    });
-};
-
-
-
-// ボタンを押されたら任意の位置から動画再生する処理登録
-function SetupPlayVideo(buttonName, target, startTimeAttr, callback)
-{
-    var buttonElem = document.querySelectorAll(buttonName);
-    buttonElem.forEach((i) => 
-    {
-        CheckDuplicate(i, "media_play", ()=>
-        {
-            i.addEventListener("click", (elem)=>
-            {
-                var time = elem.target.getAttribute(startTimeAttr);
-                if (time == null)
-                {
-                    time = 0;
-                }
-    
-                var v = document.getElementById(target);
-                v.currentTime = time;
-
-                callback(elem.target, time);
-               // v.play();
-            });
-        });
-    });
-}
 
 
 // ボリューム保存セットアップ
-function SetupKeepVolume(videoName)
+function SetupKeepVolume(video)
 {
-    var video = document.getElementById(videoName);
     video.addEventListener("volumechange", (event) => 
     {
         localStorage.setItem('volume', event.target.volume);
     });
     
     // 以前のボリュームを復帰
+    PullVolume(video);
+}
+
+
+// 以前のボリュームを復帰
+function PullVolume(video)
+{
     var volume = localStorage.getItem('volume');
-    if(volume)
+    if(volume != null)
     {
         video.volume = volume;
     }
@@ -100,7 +26,7 @@ function SetupKeepVolume(videoName)
 
 
 // ボタンを押されたら現在の動画の位置を取得
-function SetupBtnPlayPoint(buttonName, target, callback)
+function SetupBtnPlayPoint(buttonName, callback)
 {
     var buttonElem = document.querySelectorAll(buttonName);
     buttonElem.forEach((i) => 
@@ -112,8 +38,7 @@ function SetupBtnPlayPoint(buttonName, target, callback)
 
         i.addEventListener("click", (elem)=>
         {
-            var v = document.getElementById(target);
-            callback(elem.target, v.currentTime);
+            callback(elem.target);
         });
     });
 }

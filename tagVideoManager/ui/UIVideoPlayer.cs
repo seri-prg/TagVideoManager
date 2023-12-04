@@ -62,7 +62,6 @@ namespace tagVideoManager
 				initTagString = UIList.GetTagListJson(db),
 				list_url = UIList.ListHtmlName,
 				file_id = mediaLinkName
-				// initPlayPointString = GetPlayMenuJson(db, query)
 			});
 			server.Localize.AddText(hash); // 翻訳データ追加
 
@@ -92,21 +91,32 @@ namespace tagVideoManager
 				tagInfo = dbTag.GetTagLinkInfo(db, mediaInfo.volume_serial, mediaInfo.file_id);　// 情報を再取得
 			}
 
+			tagInfo.First().Value.First();
+
 			return JsonSerializer.Serialize(new
 			{
 				file_id = mediaLinkName,
-				tag_list = tagInfo.Select(t => new
+				tag_list = tagInfo.Select(t =>
 				{
-					id = t.Value.First().tag_id,
-					name = t.Key,
-					time_list = t.Value.Select(v => new
+					var firstTimeInfo = t.Value?.FirstOrDefault();
+					var color = (firstTimeInfo.tag_type == (int)dbTag.tag_type.normal)
+								? (firstTimeInfo.color.Substring(0, firstTimeInfo.color.Length -2) + "65")
+								: "#00000000";
+
+					return new
 					{
-						id = v.tag_link_id,
-						second = v.start_time,
-						color = v.color,
-						link_img = $"{v.tag_link_id}.link_img",	//
-						disp = UIUtil.GetTimeString(v.start_time)
-					})
+						id = t.Value.First().tag_id,
+						name = t.Key,
+						color = color,
+						time_list = t.Value.Select(v => new
+						{
+							id = v.tag_link_id,
+							second = v.start_time,
+							type = v.tag_type,
+							link_img = $"{v.tag_link_id}.link_img", //
+							disp = UIUtil.GetTimeString(v.start_time)
+						})
+					};
 				}),
 			});
 		}
