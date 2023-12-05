@@ -25,7 +25,10 @@ namespace tagVideoManager
 			public long id;
 			public ulong volume_serial; // ボリュームシリアルナンバー
 			public ulong file_id;	// ファイル固有ID
-			public byte[] mini_image;	// サムネイル
+			public byte[] mini_image;   // サムネイル
+			public int media_type;
+			public int vr_dome;
+			public int vr_source_type;
 		}
 
 
@@ -73,6 +76,11 @@ namespace tagVideoManager
 						new { image, mediaId });
 		}
 
+		public static void UpdateMedia(DB db, ulong mediaId, string key, int value)
+		{
+			db.Execute(@$"update media_file set '{key}' = @value where id = @mediaId",
+														new { mediaId, value});
+		}
 
 
 		// タグ名前付きリンク情報
@@ -217,20 +225,28 @@ namespace tagVideoManager
 
 		public static ulong GetMediaId(DB db, ulong volumeSerial, ulong fileId)
 		{
+			var info = GetMediaInfo(db, volumeSerial, fileId);
+			return (info == null) ? 0 : (ulong)info.id;
+		}
+
+
+		public static MEDIA_FILE_INFO GetMediaInfo(DB db, ulong volumeSerial, ulong fileId)
+		{
 			var result = db.Query<MEDIA_FILE_INFO>(
 						$@"select 
-							id 
+							id, 
+							media_type,
+							vr_dome,
+							vr_source_type
 						from 
 							media_file 
 						where
-							volume_serial='{volumeSerial}' and 
-							file_id ='{fileId}'");
-			var data = result.FirstOrDefault();
-			if (data == null)
-				return 0;
-
-			return (ulong)data.id;
+							volume_serial=@volumeSerial and 
+							file_id =@fileId", new { volumeSerial, fileId });
+			return result.FirstOrDefault();
 		}
+
+
 
 
 		public static void RemoveMedia(DB db, ulong mediaId)
@@ -249,7 +265,13 @@ namespace tagVideoManager
 				new ColumInfo("file_id", ColumInfo.Type.Int, "UNIQUE"),
 				new ColumInfo("mini_image", ColumInfo.Type.Blob),
 				new ColumInfo("register_time", ColumInfo.Type.Int, "default 0"),
-				new ColumInfo("create_time", ColumInfo.Type.Int, "default 0")
+				new ColumInfo("create_time", ColumInfo.Type.Int, "default 0"),
+				// 0:動画 1:VR動画
+				new ColumInfo("media_type", ColumInfo.Type.Int, "default 0"),
+				// 180 or 360
+				new ColumInfo("vr_dome", ColumInfo.Type.Int, "default 180"),
+				// 0:１枚絵 1:左右分割 2:上下分割
+				new ColumInfo("vr_source_type", ColumInfo.Type.Int, "default 0"),
 			});
 		}
 

@@ -25,61 +25,110 @@ function PullVolume(video)
 
 
 
-// ボタンを押されたら現在の動画の位置を取得
-function SetupBtnPlayPoint(buttonName, callback)
-{
-    var buttonElem = document.querySelectorAll(buttonName);
-    buttonElem.forEach((i) => 
+// プレイポイント削除管理
+class TagRemover { 
+    _target = null; // 削除ボタン
+    _removeId = null; // 削除ID
+    _opCode = null; // オペレーションコード
+
+    onClick = null; // 削除ボタンクリック時
+
+    setup(targetId) {
+        this._target = document.getElementById(targetId);
+        this._target.onclick = () => {
+            this.onClick(this._opCode, this._removeId); 
+        };
+        this.hide();
+    }
+
+    // 削除情報設定
+    setInfo(opCode, text, removeId)
     {
-        if (i.getAttribute("add_play_point")!=null)
-            return;
+        this._target.textContent = text;
+        this._removeId = removeId; // opCodeによって意味が変わる
+        this._opCode = opCode; // r=タグリンクId ra=タグId
+        this.#show();
+    }
     
-        i.setAttribute("add_play_point", "true");
 
-        i.addEventListener("click", (elem)=>
-        {
-            callback(elem.target);
-        });
-    });
+    #show() { this._target.style.display = "block"; }
+
+    // ボタン非表示
+    hide() { this._target.style.display = "none"; }
 }
 
 
-// 開始ポイント削除ボタンの更新
-function UpdatePlayPointRemoveBtn(buttonName, opCode, text, removeId)
-{
-    var remove = document.getElementById(buttonName);
-    remove.textContent = text;
-    remove.setAttribute("remove_id", removeId); // opCodeによって意味が変わる
-    remove.setAttribute("op_code", opCode); // r=タグリンクId ra=タグId
-    remove.style.display = "block";  // 表示
-}
 
 
-function SetupPlayPointRemoveBtn(buttonName, callback)
-{
-    var remove = HideElem(buttonName);
 /*
-    var remove = document.getElementById(buttonName);
-    remove.style.display = "none";  // 最初は非表示
+    プレイポイントを追加するタグリスト
 */
-    CheckDuplicate(remove, "remove_tag_link", ()=>
-    {
-       remove.addEventListener("click", (elem)=>
-       {
-            var opCode = elem.target.getAttribute("op_code");
-            var removeId = elem.target.getAttribute("remove_id");
-            callback(opCode, removeId);
-            elem.target.style.display = "none";  // 
-        });
-    });
-}
+class VideoTagList {
+    _target = null; // 描画先
+    _filterText = null; // 検索ボックスの文字
 
-// 非表示
-function HideElem(targetId)
-{
-    var hide = document.getElementById(targetId);
-    hide.style.display = "none";  // 最初は非表示
-    return hide;
+    // タグボタンを押した時のイベント
+    onClickTag = null;
+
+    setup(targetId, textBoxId) {
+		this._target = document.getElementById(targetId);
+        this.#setupTextBox(textBoxId);
+    }
+
+    // 検索ボックス登録
+    #setupTextBox(textBoxId) {
+		var tagText = document.getElementById(textBoxId);
+
+		this._filterText = localStorage.getItem('tagFilterText');	// 別ページから引き継ぐ為
+		if (this._filterText)
+		{
+			tagText.value = this._filterText;
+			this.updateFilter();
+		}
+
+        // テキストボックス入力イベント
+        tagText.oninput = (e)=> {
+            this._filterText =  e.target.value;
+			localStorage.setItem('tagFilterText', this._filterText);	// 別ページから引き継ぐ為
+            this.updateFilter();
+        }
+    }
+
+
+    // タグリスト更新
+	update(jsonData)
+	{
+		RemoveChildAll(this._target);
+
+		jsonData.forEach(element => 
+		{
+			const tag = document.createElement('button');
+			tag.className = "tag_parts";
+			tag.id = element.tag_id;
+			tag.innerText = element.name;
+            tag.onclick = (elem) => {
+                this.onClickTag(elem.target);
+            };
+            this.#updateShowTag(tag);
+
+            this._target.appendChild(tag);
+		});
+	}
+
+    // タグ1つの表示更新
+    #updateShowTag(elem) {
+        elem.style.display = (elem.textContent.indexOf(this._filterText) >= 0)
+                                                                ? "block" : "none";
+    }
+
+
+    // 任意の文字列を含むタグのみを表示
+    updateFilter()
+	{
+		// フィルタリング 
+		var tagList = document.querySelectorAll("tag_parts");
+		tagList.forEach((i) => { this.#updateShowTag(i);});
+	}
 }
 
 

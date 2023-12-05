@@ -153,41 +153,17 @@
 <script>
 	var _playPoint = null;	// プレイポイント
 	var _videoSwitcher = null; // 動画切り替え
+	var _videoTagList = null; // タグリスト
+	var _tagRemover = null;	// タグ削除ボタン
 
-	// タグ追加ボタン押されたとき
-	function OnAddTag(msg)
-	{
-		console.log("OnAddTag:" + msg);
-		// 既存のチェック状態は維持しながら更新する
-		RequestJson("{{root_url}}video_update_taglist.custom_text?at=" + msg, (json)=>
-		{
-			UpdateTagList("tag_checkList", json); // タグリスト更新
-			updateTagFilter("tag_text", ".tag_parts");	// タグリストの表示状態を更新
-			SetupBtnPlayPoint(".tag_parts",  OnAddPlayPoint); // プレイポイント追加ボタン
-		});
-	}
-
-	// プレイポイント追加ボタン押下時
-	function OnAddPlayPoint(elem)
-	{
-		const video = _videoSwitcher.getCurrentVideo();
-		RequestUpdatePlayPoint("&t=" + elem.id + "&ti=" + video.currentTime);
-	}
-
-	// プレイポイント削除処理
-	function OnRemovePlayPoint(opCode, removeId)
-	{
-		RequestUpdatePlayPoint("&"+opCode+"=" + removeId);
-	}
-
-
+	
 	// プレイポイントの更新リクエスト
 	function RequestUpdatePlayPoint(updateQuery)
 	{
 		RequestJson("{{root_url}}video_update_play_point.custom_text?mt={{file_id}}" + updateQuery, (json)=>
 		{
 			_playPoint.update(json);
-			HideElem("tag_remove");	// 削除ボタンをoff
+			_tagRemover.hide();	// 削除ボタンをoff
 		});
 	}
 
@@ -202,27 +178,12 @@
 	// タグリスト初期値
 	const initJsonStr = `{{initTagString}}`;
 
-	function UpdateTagList(targetId, jsonData)
-	{
-		var target = document.getElementById(targetId);
-		RemoveChildAll(target);
-
-		jsonData.forEach(element => 
-		{
-			const tag = document.createElement('button');
-			tag.className = "tag_parts";
-			tag.id = element.tag_id;
-			tag.innerText = element.name;
-			target.appendChild(tag);
-		});
-	}
-
 
 	// サムネイル更新
 	function UpdateThumbnail()
 	{
-		var v = document.getElementById("video");
-		callHtml("{{root_url}}video_update.custom_text?mt={{file_id}}&tht=" + v.currentTime);
+		const video = _videoSwitcher.getCurrentVideo();
+		callHtml("{{root_url}}video_update.custom_text?mt={{file_id}}&tht=" + video.currentTime);
 	}
 
 
@@ -237,17 +198,44 @@
 			var name = elem.getAttribute("tag_name");
 			var dispTime = elem.getAttribute("play_disp");
 			// タグ削除ボタン更新
-			UpdatePlayPointRemoveBtn("tag_remove", "rl", "{{tw_RemoveTag}}[" + name + "/" + dispTime+ "]", elem.id);
+			_tagRemover.setInfo("rl", "{{tw_RemoveTag}}[" + name + "/" + dispTime+ "]", elem.id);
 		};
 
 		// タグ開閉時
 		 playPoint.onChangeTagNode = (nodeElem) => {
 			// タグ全体を削除
-			UpdatePlayPointRemoveBtn("tag_remove", "rla","{{tw_delAll}}[" + nodeElem.textContent+ "]", nodeElem.id);
+			_tagRemover.setInfo("rla","{{tw_delAll}}[" + nodeElem.textContent+ "]", nodeElem.id);
 		};
 
 		return playPoint;
 	}
+
+	// タグリストセットアップ
+	function SetupTagList() {
+		var tagList = new VideoTagList();
+		tagList.setup("tag_checkList", "tag_text");
+		// タグクリック時
+		tagList.onClickTag = (elem) => {
+			// プレイポイント追加
+			const video = _videoSwitcher.getCurrentVideo();
+			RequestUpdatePlayPoint("&t=" + elem.id + "&ti=" + video.currentTime);
+		};
+
+		return tagList;
+	}
+
+	function SetupTagRemover() {
+		var tagRemover = new TagRemover();
+		tagRemover.setup("tag_remove");
+		tagRemover.onClick = (opCode, removeId) => {
+			RequestUpdatePlayPoint("&"+opCode+"=" + removeId);
+		};
+
+		return tagRemover;
+	}
+
+
+
 
 	// 自前動画操作
 	class CustomVideoControl {
@@ -495,32 +483,47 @@
 		{
 			const target = document.getElementById(elemName);
 			var selects = target.selectedOptions
-			return (selects.length > 0) ? selects[0].value : "";
+			var result = { disp : "" , serverId : "0" }
+
+			if (selects.length > 0)
+			{
+				result.disp = selects[0].value;
+				result.serverId = selects[0].getAttribute("serverId");
+			}
+			return result;
 		}
 
 		// VRの設定更新
 		#updateHalf()
 		{
 			const select = VideoSwitcher.getSelectString("videoHalf");
-			console.log(select);
-			this._bbRender.setHalf(select == "180");
+			this._bbRender.setHalf(select.disp == "180");
+			return select.serverId;
 		}
 
 		// VRのソース設定更新
 		#updateVideoMode()
 		{
 			const select = VideoSwitcher.getSelectString("videoMode");
-			console.log(select);
-			this._bbRender.setVideoModeFromString(select);
+			this._bbRender.setVideoModeFromString(select.disp);
+			return select.serverId;
 		}
 
 		// UIセットアップ
 		#setupUI()
 		{
 			// 180 or 360
-			document.getElementById("videoHalf").onchange = () => {this.#updateHalf(); }
+			document.getElementById("videoHalf").onchange = () => {
+				const serverId = this.#updateHalf();
+				// 保存用ServerIdをサーバに送る
+				callHtml("{{root_url}}video_update.custom_text?meId={{media_id}}&vr_half=" + serverId);
+			}
 			// texture mode
-			document.getElementById("videoMode").onchange = () => { this.#updateVideoMode();};
+			document.getElementById("videoMode").onchange = () => {
+				const serverId = this.#updateVideoMode();
+				// 保存用ServerIdをサーバに送る
+				callHtml("{{root_url}}video_update.custom_text?meId={{media_id}}&vr_mode=" + serverId);
+			};
 		}
 
 
@@ -609,24 +612,21 @@
 	function ToggleVrMode()
 	{
 		_videoSwitcher.toggle();
+		var toggleValue = _videoSwitcher._normal ? 0 : 1; 
+		callHtml("{{root_url}}video_update.custom_text?meId={{media_id}}&vr_toggle=" + toggleValue);
 	}
 
 	document.addEventListener('DOMContentLoaded', function() 
 	{
 		_playPoint = SetupPlayPoint(); // プレイポイントのセットアップ
+		_videoTagList = SetupTagList(); // タグリストのセットアップ
 
 		_videoSwitcher = new VideoSwitcher();	// 動画切り替え
 		_videoSwitcher.setup("video", "vr_video", _playPoint);
 
+		_videoTagList.update(JSON.parse(initJsonStr)); // タグリスト更新
 
-		UpdateTagList("tag_checkList", JSON.parse(initJsonStr)); // タグリスト更新
-
-		// タグ追加関係
-		setupTagFilter("tag_text", ".tag_parts");		// タグのフィルタリング登録 
-		setupTagAdd("tag_text", "tag_add", OnAddTag);	// タグ追加ボタン
-
-		SetupBtnPlayPoint(".tag_parts", OnAddPlayPoint); // プレイポイント追加ボタン
-		SetupPlayPointRemoveBtn("tag_remove", OnRemovePlayPoint); // プレイポイント削除ボタン
+		_tagRemover = SetupTagRemover();	// プレイポイント削除ボタン
 
 		// 動画を管理から外す際の確認
 		SetupConfirm("remove_video", "{{tw_RemoveMediaConfirm}}", OnRemoveVideo);
@@ -634,6 +634,11 @@
 		// プレイポイントの更新リクエスト
 		// 初回は処理が重いのでページ遷移してからリクエストかける。
 		RequestUpdatePlayPoint("");
+
+		// 動画タイプを見てVR動画にするか判定
+		{% if media_type != "0" %}
+			ToggleVrMode();
+		{% endif %}
 
 	}, false);
 
@@ -650,13 +655,13 @@
 		<button onclick="ToggleVrMode()">{{tw_toggleVr}}切り替え<!--VRモードに切り替え--></button>
 		<span id="vr_edit">
 			<select id="videoHalf">
-				<option value='180' selected>180</option>
-				<option value="360" >360</option>
+				<option serverId="180" value='180' {% if vr_dome == "180" %}selected {% endif %}>180</option>
+				<option serverId="360" value="360" {% if vr_dome == "360" %}selected {% endif %}>360</option>
 			</select>
 			<select id="videoMode">
-				<option value='MODE_MONOSCOPIC' >全画面</option>
-				<option value="MODE_SIDEBYSIDE" selected>左右分割</option>
-				<option value="MODE_TOPBOTTOM">上下分割</option>
+				<option serverId="0" value='MODE_MONOSCOPIC' {% if vr_source_type == "0" %}selected {% endif %}>全画面</option>
+				<option serverId="1" value='MODE_SIDEBYSIDE' {% if vr_source_type == "1" %}selected {% endif %}>左右分割</option>
+				<option serverId="2" value='MODE_TOPBOTTOM' {% if vr_source_type == "2" %}selected {% endif %}>上下分割</option>
 			</select>
 			<button id="urlCode">URL</button>
 		</span>
@@ -693,7 +698,7 @@
 <!-- 途中再生 -->
 <div id="play_menu">
 	<!-- プレイポイントを展開 -->
-	<div id="play_point_loading"><img src="loading-l-5.gif" /></div>
+	<div id="play_point_loading"><img src="./icon/loading-l-5.gif" /></div>
 </div>
 </div>
 

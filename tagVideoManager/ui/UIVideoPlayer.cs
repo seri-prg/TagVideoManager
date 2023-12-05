@@ -52,13 +52,20 @@ namespace tagVideoManager
 			var db = server.Db;
 			var mediaLinkName = Utility.GetQueryValue(query, "mt");
 			var ids = UIUtil.GetFileIds(mediaLinkName);
+			var mediaInfo = dbFile.GetMediaInfo(db, ids.volume_serial, ids.file_id);
 			var videoPath = (ids != null)
 						? FileIdHelper.GetFilePath(ids.volume_serial, (long)ids.file_id)
 						: "no path";
 
+
+
 			var hash = Hash.FromAnonymousObject(new
 			{
 				file_path = videoPath,
+				media_id = mediaInfo.id,
+				media_type = mediaInfo.media_type,
+				vr_dome = mediaInfo.vr_dome,
+				vr_source_type = mediaInfo.vr_source_type,
 				initTagString = UIList.GetTagListJson(db),
 				list_url = UIList.ListHtmlName,
 				file_id = mediaLinkName

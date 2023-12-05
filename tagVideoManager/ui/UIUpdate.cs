@@ -16,6 +16,7 @@ namespace tagVideoManager
 		/*
 			at=[タグ名] :タグの追加
 			mt=[file_id]:対象のメディア(汎用)
+			meId=[media_id]: メディアのユニークID(汎用)
 			 t=[tag_id] :タグリンクの追加(対象:mtにタグ:tを追加。開始時間:tiはあれば設定なければ0)
 			ti=[数値]	:追加タグリンクの再生時間(あれば)
 			rv=[file_id]:管理から外すメディア
@@ -23,6 +24,9 @@ namespace tagVideoManager
 			rl=[tag_link_id] タグリンク削除
 			rla=[tagId] 任意のメディアのタグIDのリンクを全て削除(対象:mtからタグID:rlaのリンクを全て削除)
 			tht=[数値]	:サムネイルにする動画の時間
+			vr_toggle=[0 or 1] : 0:通常動画 1:VR動画
+			vr_half=[180 or 360] : 180:ハーフドーム 360:フルドーム
+			vr_mode=[0-2]: 0:MODE_MONOSCOPIC 1:MODE_SIDEBYSIDE 2:MODE_TOPBOTTOM
 
 		*/
 		public static void UpdateInfo(DB db, string query)
@@ -55,7 +59,47 @@ namespace tagVideoManager
 			// サムネイル更新
 			TryUpdateThumbnail(db, queryParam);
 
+			// 
+			TryUpdateVrMode(db, queryParam);
 		}
+
+		private static bool TryGetInt(string key, Dictionary<string, string> param, out int result)
+		{
+			result = 0;
+			if (!param.TryGetValue(key, out var value)) return false;
+			return int.TryParse(value, out result);
+		}
+
+		private static bool TryGetUlong(string key, Dictionary<string, string> param, out ulong result)
+		{
+			result = 0;
+			if (!param.TryGetValue(key, out var value)) return false;
+			return ulong.TryParse(value, out result);
+		}
+
+
+		// VR設定の更新
+		private static void TryUpdateVrMode(DB db, Dictionary<string, string> queryParam)
+		{
+			if (!TryGetUlong("meId", queryParam, out var mediaId))
+				return;
+
+			if (TryGetInt("vr_toggle", queryParam, out var vrType))
+			{
+				dbFile.UpdateMedia(db, mediaId, "media_type", vrType);
+			}
+
+			if (TryGetInt("vr_half", queryParam, out var vrDome))
+			{
+				dbFile.UpdateMedia(db, mediaId, "vr_dome", vrDome);
+			}
+
+			if (TryGetInt("vr_mode", queryParam, out var vrSource))
+			{
+				dbFile.UpdateMedia(db, mediaId, "vr_source_type", vrSource);
+			}
+		}
+
 
 		// サムネイル更新
 		private static void TryUpdateThumbnail(DB db, Dictionary<string, string> queryParam)
