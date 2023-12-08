@@ -100,11 +100,15 @@ namespace tagVideoManager
 					Marshal.ThrowExceptionForHR(Marshal.GetHRForLastWin32Error());
 				}
 
-				const int length = 128;
+				const int length = 1024;
 				var builder = new StringBuilder(length);
-				GetFinalPathNameByHandleW(handle2, builder, length, 0);
+				var needSize = GetFinalPathNameByHandleW(handle2, builder, length, 0);
 				var resultPath = builder.ToString();
 
+				if (needSize >= length)
+				{
+					throw new Exception("File Name Buffer size over");
+				}
 
 				if (resultPath.StartsWith("\\\\?\\UNC\\"))
 				{
