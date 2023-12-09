@@ -1,6 +1,6 @@
-﻿using QRCoder;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Data.Entity.Infrastructure;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -24,6 +24,7 @@ namespace tagVideoManager
 
 		private HttpListener _listener = new HttpListener();
 		private List<UIBase> _uiList = new List<UIBase>();
+		private Query _query = new Query();// クエリコントロール
 
 
 		public DB Db { get; private set; }
@@ -58,7 +59,8 @@ namespace tagVideoManager
 			_uiList.AddRange(new UIBase[] 
 			{
 				new UIList(),
-				new UIVideoPlayer()
+				new UIVideoPlayer(),
+				new UIVideoVr()
 			});
 		}
 
@@ -81,12 +83,8 @@ namespace tagVideoManager
 		// スタートページのQRコード画像を作成
 		public void CreateQRImage()
 		{
-			var qrGenerator = new QRCodeGenerator();
-			var qrCodeData = qrGenerator.CreateQrCode(StartUrl, QRCodeGenerator.ECCLevel.Q);
-			var qrCode = new QRCode(qrCodeData);
-			var qrCodeImage = qrCode.GetGraphic(10);
 			var outPath = Path.Combine(RootPath, "start.png");
-			qrCodeImage.Save(outPath, ImageFormat.Png);
+			QRCodeUtil.CreateImage(outPath, StartUrl);
 		}
 
 
@@ -135,6 +133,9 @@ namespace tagVideoManager
 					ReturnInternalError(context.Response, e);
 				}
 			}
+			finally
+			{
+			}
 		}
 
 		static bool CanAccept(HttpMethod expected, string requested)
@@ -182,7 +183,7 @@ namespace tagVideoManager
 		}
 
 		// ページの表示
-		private string Show(string path, string query)
+		private string Show(string path, Query query)
 		{
 			// データ更新処理
 			UIUpdate.UpdateInfo(Db, query);
@@ -231,7 +232,8 @@ namespace tagVideoManager
 				case "html":
 					{
 						response.ContentType = $"text/{ext}";
-						var data = owner.Show(filePath, request.Url.Query);
+						owner._query.Setup(request.Url.Query);
+						var data = owner.Show(filePath, owner._query);
 						if (string.IsNullOrEmpty(data))
 						{
 							data = File.ReadAllText(filePath, Encoding.UTF8);
@@ -262,6 +264,7 @@ namespace tagVideoManager
 						}
 					}
 					break;
+				// mediaのサムネイルイメージ
 				case "link_img":
 					{
 						response.ContentType = $"image/png";
@@ -338,7 +341,8 @@ namespace tagVideoManager
 				case "custom_text":
 					{
 						response.ContentType = $"text/plain";
-						var text = owner.Show(filePath, request.Url.Query);
+						owner._query.Setup(request.Url.Query);
+						var text = owner.Show(filePath, owner._query);
 						if (string.IsNullOrEmpty(text))
 						{
 							text = $"[{htmlFileName}] error request.";
@@ -379,6 +383,16 @@ namespace tagVideoManager
 					{
 						response.ContentType = $"video/mpeg";
 						WriteBinary(context, filePath);
+					}
+					break;
+				case "code_img":
+					{
+						response.ContentType = $"image/png";
+						owner._query.Setup(request.Url.Query);
+						using (var ms = QRCodeUtil.CreateImage(owner.RootUrl, owner._query))
+						{
+							WriteBinary(context, ms);
+						}
 					}
 					break;
 
@@ -422,7 +436,9 @@ namespace tagVideoManager
 
 				var buffer = new byte[total];
 				fs.Read(buffer, 0, buffer.Length);
+				response.ContentLength64 = buffer.Length;
 				response.OutputStream.Write(buffer, 0, buffer.Length);
+				response.OutputStream.Close();
 				response.Close();
 			}
 			catch (Exception)

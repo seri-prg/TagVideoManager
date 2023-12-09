@@ -12,6 +12,7 @@
 	height:100%;
 }
 
+
 #tag_list {
 	position: relative;	/*相対配置*/
 	border: 1px solid #999;
@@ -54,6 +55,40 @@
 	height:100%;
 	overflow:auto;
 }
+
+#url_code {
+	flex-shrink: 1;
+	position: absolute;
+	width: 100%;
+	height:100%;
+	top:0;
+	background: rgba(40, 40, 40, 0.75);
+	text-align: center;
+	justify-content: space-between;
+}
+#url_code img{
+	object-fit: contain;
+	height:90%;
+}
+
+#path_button {
+	overflow: hidden;
+	line-height: 1.0;
+	white-space: nowrap;
+	max-width: 400px;
+/*
+
+padding: 10px;
+	border: 1px solid #ccc;
+	padding: 10px;
+	background: #eee;
+*/
+
+	text-overflow: ellipsis;
+	-webkit-text-overflow: ellipsis; /* Safari */
+	-o-text-overflow: ellipsis; /* Opera */
+}
+
 
 #vr_video_editor {
 	position: absolute;
@@ -155,6 +190,7 @@
 	var _videoSwitcher = null; // 動画切り替え
 	var _videoTagList = null; // タグリスト
 	var _tagRemover = null;	// タグ削除ボタン
+	var _customVideoControl = null; // VR動画用コントローラ
 
 	
 	// プレイポイントの更新リクエスト
@@ -173,6 +209,13 @@
 	{
 		window.location.href = './{{list_url}}?rv={{file_id}}';
 	}
+
+	// テスト呼び出し
+	function CallVrTest()
+	{
+		window.location.href = './video_vr.html?meId={{media_id}}';
+	}
+
 
 
 	// タグリスト初期値
@@ -224,6 +267,7 @@
 		return tagList;
 	}
 
+	// 削除ボタンのセットアップ
 	function SetupTagRemover() {
 		var tagRemover = new TagRemover();
 		tagRemover.setup("tag_remove");
@@ -250,6 +294,7 @@
 		_lastMuteVolume = 0; // ミュートが押された時のボリューム
 		_speedBarElem = null; 
 		_cameraFov = null;
+		_editor = null; // コントロール全体
 
 		_bbRender = null; // 3Dレンダラ
 		_iconPlay = null;
@@ -289,6 +334,13 @@
 			}
 		}
 
+		// コントロール非表示
+		hideControl()
+		{
+			this._editor.style.opacity  = 0.0;
+		}
+
+
 		setup(setObj)
 		{
 			this._video = setObj.videoElem;
@@ -306,14 +358,14 @@
 			this._bbRender = setObj.bbRender;
 
 			// コントローラーの表示on/off
-			var editor = document.getElementById(setObj.editorIdName);
-			editor.onmouseenter = (elem) => {
+			this._editor = document.getElementById(setObj.editorIdName);
+			this._editor.onmouseenter = (elem) => {
 				elem.target.style.opacity  = 1;
 			}
-			editor.onmouseleave = (elem) => {
+			this._editor.onmouseleave = (elem) => {
 				// 非表示にするのは再生中の時だけ
 				if (!this._video.paused) {
-					elem.target.style.opacity  = 0.0;
+					this.hideControl();
 				}
 			}
 
@@ -447,7 +499,9 @@
 		_vrElem = null;
 		_bbRender = null; // VR用レンダラ
 		_playPoint = null;
-		_customVideoControl = null; // VR動画用コントローラ
+
+		// イベント
+		onShowVrVideo = [];	// VR用Videoが表示された時
 
 		// 現在の操作対象動画を取得
 		getCurrentVideo()
@@ -556,9 +610,8 @@
 						this._playPoint.setControlVideo(video);
 					}
 
-					if (this._customVideoControl != null) {
-						this._customVideoControl.updateVideoInfo();
-					}
+					// Vr動画が有効になった時
+					this.onShowVrVideo.forEach((callback) =>{callback();});
 				}
 			}
 		}
@@ -568,34 +621,14 @@
 			if (this._bbRender == null)
 			{
 				this._bbRender = new BBRender();
-				this._bbRender.setup("renderCanvas", (render)=> {
+				this._bbRender.setup("renderCanvas", false, (render)=> {
 					this._bbRender.play("{{file_id}}.custom_video");
 					this.#updateHalf();					// 動画の状態を現在のものに更新
 					this.#updateVideoMode();			// 動画の状態を現在のものに更新
 					SetupKeepVolume(this._bbRender.getVideoElem()); //ボリューム保存セットアップ
 					this._playPoint.setControlVideo(this._bbRender.getVideoElem());
 
-					this._customVideoControl = new CustomVideoControl();
-					this._customVideoControl.setup({
-						bbRender : this._bbRender,
-						videoElem : this._bbRender.getVideoElem(),
-						editorIdName : "vr_video_editor", // ベース位置
-						play : "vr_ed_play_stop",
-						timeIdName : "vr_ed_time",
-						progressIdName : "vr_ed_progress", // シークバー
-						volumeIdName : "vr_ed_volume", // ボリュームシークバー
-						muteIdName : "vr_ed_mute",	// ミュートボタン
-						playImageIdName : "vr_ed_img_play", // 再生アイコン
-						pauseImageIdName : "vr_ed_img_pause", // 停止アイコン
-						soundImageIdName : "vr_ed_img_sound", // 音ありアイコン
-						muteImageIdName : "vr_ed_img_mute",	// ミュートアイコン
-
-						speedBarIdName : "vr_ed_speed",		// スピードスライダー
-						speedResetIdName :"vr_ed_speed_reset",	// スピード初期値ボタン
-
-						cameraBarIdName : "vr_ed_camera",
-						cameraResetIdName : "vr_ed_camera_reset"
-					});
+					SetupCustomVideoControl(this, this._bbRender);
 				});
 			}
 		}
@@ -608,6 +641,39 @@
 	}
 
 
+	// 動画コントローラのセットアップ
+	function SetupCustomVideoControl( videoSwitcher, bbRender) 
+	{
+		_customVideoControl = new CustomVideoControl();
+		_customVideoControl.setup({
+			bbRender : bbRender,
+			videoElem : bbRender.getVideoElem(),
+			editorIdName : "vr_video_editor", // ベース位置
+			play : "vr_ed_play_stop",
+			timeIdName : "vr_ed_time",
+			progressIdName : "vr_ed_progress", // シークバー
+			volumeIdName : "vr_ed_volume", // ボリュームシークバー
+			muteIdName : "vr_ed_mute",	// ミュートボタン
+			playImageIdName : "vr_ed_img_play", // 再生アイコン
+			pauseImageIdName : "vr_ed_img_pause", // 停止アイコン
+			soundImageIdName : "vr_ed_img_sound", // 音ありアイコン
+			muteImageIdName : "vr_ed_img_mute",	// ミュートアイコン
+
+			speedBarIdName : "vr_ed_speed",		// スピードスライダー
+			speedResetIdName :"vr_ed_speed_reset",	// スピード初期値ボタン
+
+			cameraBarIdName : "vr_ed_camera",
+			cameraResetIdName : "vr_ed_camera_reset"
+		});
+
+		// イベント追加
+		videoSwitcher.onShowVrVideo.push(() => {
+			_customVideoControl.updateVideoInfo();
+		});
+	}
+
+
+
 	// VR動画と切り替え
 	function ToggleVrMode()
 	{
@@ -615,6 +681,29 @@
 		var toggleValue = _videoSwitcher._normal ? 0 : 1; 
 		callHtml("{{root_url}}video_update.custom_text?meId={{media_id}}&vr_toggle=" + toggleValue);
 	}
+
+	// URLコード表示ボタンコントロール
+	function SetupHideTaggle(switchName, targetName) {
+		var target = document.getElementById(targetName);
+
+		target.style.display = "none"; // デフォルト非表示
+		document.getElementById(switchName).onclick = (elem) => {
+			if (target.style.display == "none") {
+				_videoSwitcher.getCurrentVideo().pause();
+
+				target.style.display = "block";
+			} else {
+				target.style.display = "none";
+			}
+		}
+
+		// codeをクリックした場合も閉じる
+		target.onclick = (elem)=> {
+			target.style.display = "none";
+		}
+	}
+
+
 
 	document.addEventListener('DOMContentLoaded', function() 
 	{
@@ -640,6 +729,7 @@
 			ToggleVrMode();
 		{% endif %}
 
+		SetupHideTaggle("codeSwitch", "url_code");
 	}, false);
 
 </script>
@@ -652,6 +742,9 @@
 <div id="video_area" >
 	<div id="video_head_btn">
 		<button onclick="UpdateThumbnail()">{{tw_setThumbnail}}<!--サムネイルに設定--></button>
+		<!--
+		<button onclick="CallVrTest()">VR呼び出しテスト</button>
+		-->
 		<button onclick="ToggleVrMode()">{{tw_toggleVr}}切り替え<!--VRモードに切り替え--></button>
 		<span id="vr_edit">
 			<select id="videoHalf">
@@ -663,21 +756,25 @@
 				<option serverId="1" value='MODE_SIDEBYSIDE' {% if vr_source_type == "1" %}selected {% endif %}>左右分割</option>
 				<option serverId="2" value='MODE_TOPBOTTOM' {% if vr_source_type == "2" %}selected {% endif %}>上下分割</option>
 			</select>
-			<button id="urlCode">URL</button>
+			<button id="codeSwitch">URL</button>
 		</span>
 
-		<button onclick="callHtml('{{root_url}}{{file_id}}.direct_open')">{{file_path}}</button>
+		<button onclick="callHtml('{{root_url}}{{file_id}}.direct_open')" id="path_button" >{{file_path}}</button>
 	</div>
 
 	<!-- 通常動画用 -->
-	<video id="video" type="video/mp4" controls autoplay playsinline>
-		<source class="video_source" src="{{file_id}}.custom_video" type="video/mp4">
+	<video id="video" controls autoplay playsinline>
+		<source class="video_source" src="{{file_id}}.custom_video" type="video/{{video_ext}}">
 		<source class="video_source" src="{{file_id}}.direct_video" type="video/mp4">
 	</video>
 
 	<!-- VR 動画用 -->
 	<div id="vr_video">
-		<canvas id="renderCanvas"><!--VR動画用エリア--></canvas>
+		<canvas id="renderCanvas"><!--VR動画用エリア-->
+		</canvas>
+		<!-- スマホ用URL -->
+		<button id="url_code" ><img src="./vr.code_img?html=video_vr&meId={{media_id}}" /></button>
+
 		<div id="vr_video_editor">
 			<button id="vr_ed_play_stop"><img src="./icon/icon_play.png" id="vr_ed_img_play" /><img src="./icon/icon_pause.png" id="vr_ed_img_pause" /></button>
 			<label id="vr_ed_time">0:00/99:99</label>
@@ -686,6 +783,7 @@
 			<input type="range" id="vr_ed_camera" style="display:none;" min="0" max="200" value="100" step="1"><button id="vr_ed_camera_reset"><!-- <img src="./icon/icon_camera.png" /> --></button><br>
 			<input type="range" id="vr_ed_progress" min="0" max="500" step="1">
 		</div>
+
 	</div>
 
 	<!-- タグ登録ボタン -->

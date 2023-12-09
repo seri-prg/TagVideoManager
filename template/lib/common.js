@@ -68,3 +68,28 @@ function ShowMsg(targetId, msg, timeSpan)
 	}, timeSpan);
 }
 
+// 表示のon/off切り替え
+function toggleVisible(elemId)
+{
+	const elem = document.getElementById(elemId);
+	if (elem.style.visibility == 'visible')
+	{
+		elem.style.visibility = 'hidden';
+	}
+	else
+	{
+		elem.style.visibility = 'visible';
+	}
+}
+
+// モバイル端末か否か
+function IsMobile() 
+{
+	var ua = navigator.userAgent;
+	if (ua.indexOf('iPhone') > 0 || 
+		ua.indexOf('iPad') > 0 || 
+		ua.indexOf('Android') > 0 || 
+		ua.indexOf('Mobile') > 0 )
+		return true;
+}
+

@@ -161,6 +161,8 @@
     <Compile Include="common\DB.cs" />
     <Compile Include="common\FileIdHelper.cs" />
     <Compile Include="common\NetUtil.cs" />
+    <Compile Include="common\QRCodeUtil.cs" />
+    <Compile Include="common\Query.cs" />
     <Compile Include="common\Utility.cs" />
     <Compile Include="common\VideoController.cs" />
     <Compile Include="data\dbFile.cs" />
@@ -185,6 +187,7 @@
     <Compile Include="ui\UIList.cs" />
     <Compile Include="ui\UIUpdate.cs" />
     <Compile Include="ui\UIUtil.cs" />
+    <Compile Include="ui\UIVideoVr.cs" />
     <Compile Include="ui\UIVideoPlayer.cs" />
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>

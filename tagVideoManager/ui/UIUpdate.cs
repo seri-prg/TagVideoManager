@@ -29,21 +29,19 @@ namespace tagVideoManager
 			vr_mode=[0-2]: 0:MODE_MONOSCOPIC 1:MODE_SIDEBYSIDE 2:MODE_TOPBOTTOM
 
 		*/
-		public static void UpdateInfo(DB db, string query)
+		public static void UpdateInfo(DB db, Query query)
 		{
-			var queryParam = Utility.GetQueryValues(query);
-
 			// タグの追加
-			TryAddTag(db, queryParam);
+			TryAddTag(db, query);
 
 			// タグリンクの追加
-			TryAddTagLink(db, queryParam);
+			TryAddTagLink(db, query);
 
 			// 動画を管理から外す
-			TryRemoveVideo(db, queryParam);
+			TryRemoveVideo(db, query);
 
 			// タグの削除
-			if (queryParam.TryGetValue("rt", out var removeTagList))
+			if (query.TryGetString("rt", out var removeTagList))
 			{
 				var removeTags = UIUtil.ParseArrayNum(removeTagList);
 				dbTag.RemoveTag(db, removeTags);
@@ -51,50 +49,35 @@ namespace tagVideoManager
 
 			// パラメータがあればタグリンク削除
 			// 同じカテゴリのタグがない場合はstartTimeを０にして残しておく
-			TryRemoveTagLink(db, queryParam);
+			TryRemoveTagLink(db, query);
 
 			// 任意のメディアから任意のタグのリンクを全て削除
-			TryRemoveTagLinkAll(db, queryParam);
+			TryRemoveTagLinkAll(db, query);
 
 			// サムネイル更新
-			TryUpdateThumbnail(db, queryParam);
+			TryUpdateThumbnail(db, query);
 
 			// 
-			TryUpdateVrMode(db, queryParam);
+			TryUpdateVrMode(db, query);
 		}
-
-		private static bool TryGetInt(string key, Dictionary<string, string> param, out int result)
-		{
-			result = 0;
-			if (!param.TryGetValue(key, out var value)) return false;
-			return int.TryParse(value, out result);
-		}
-
-		private static bool TryGetUlong(string key, Dictionary<string, string> param, out ulong result)
-		{
-			result = 0;
-			if (!param.TryGetValue(key, out var value)) return false;
-			return ulong.TryParse(value, out result);
-		}
-
 
 		// VR設定の更新
-		private static void TryUpdateVrMode(DB db, Dictionary<string, string> queryParam)
+		private static void TryUpdateVrMode(DB db, Query query)
 		{
-			if (!TryGetUlong("meId", queryParam, out var mediaId))
+			if (!query.TryGetUlong("meId", out var mediaId))
 				return;
 
-			if (TryGetInt("vr_toggle", queryParam, out var vrType))
+			if (query.TryGetInt("vr_toggle", out var vrType))
 			{
 				dbFile.UpdateMedia(db, mediaId, "media_type", vrType);
 			}
 
-			if (TryGetInt("vr_half", queryParam, out var vrDome))
+			if (query.TryGetInt("vr_half", out var vrDome))
 			{
 				dbFile.UpdateMedia(db, mediaId, "vr_dome", vrDome);
 			}
 
-			if (TryGetInt("vr_mode", queryParam, out var vrSource))
+			if (query.TryGetInt("vr_mode", out var vrSource))
 			{
 				dbFile.UpdateMedia(db, mediaId, "vr_source_type", vrSource);
 			}
@@ -102,13 +85,10 @@ namespace tagVideoManager
 
 
 		// サムネイル更新
-		private static void TryUpdateThumbnail(DB db, Dictionary<string, string> queryParam)
+		private static void TryUpdateThumbnail(DB db, Query query)
 		{
-			if (!queryParam.TryGetValue("mt", out var mediaLinkName) ||
-				!queryParam.TryGetValue("tht", out var timeString))
-				return;
-
-			if (!float.TryParse(timeString, out var startTime))
+			if (!query.TryGetString("mt", out var mediaLinkName) ||
+				!query.TryGetFloat("tht", out var startTime))
 				return;
 
 			var mediaInfo = UIUtil.GetFileIds(mediaLinkName);
@@ -120,9 +100,9 @@ namespace tagVideoManager
 
 
 		// 動画を管理から外す
-		private static void TryRemoveVideo(DB db, Dictionary<string, string> queryParam)
+		private static void TryRemoveVideo(DB db, Query query)
 		{
-			if (!queryParam.TryGetValue("rv", out var removeMediaName))
+			if (!query.TryGetString("rv", out var removeMediaName))
 				return;
 
 			var mediaInfo = UIUtil.GetFileIds(removeMediaName);
@@ -137,9 +117,9 @@ namespace tagVideoManager
 
 
 		// クエリ文字列からタグを追加
-		private static void TryAddTag(DB db, Dictionary<string, string> queryParam)
+		private static void TryAddTag(DB db, Query query)
 		{
-			if (!queryParam.TryGetValue("at", out var addTagId))
+			if (!query.TryGetString("at", out var addTagId))
 				return;
 
 			var tagName = System.Web.HttpUtility.UrlDecode(addTagId);
@@ -152,21 +132,17 @@ namespace tagVideoManager
 
 
 		// クエリ文字列からタグリンク追加
-		private static void TryAddTagLink(DB db, Dictionary<string, string> queryParam)
+		private static void TryAddTagLink(DB db, Query query)
 		{
-			if (!queryParam.TryGetValue("mt", out var mediaLinkName) ||
-				!queryParam.TryGetValue("t", out var tagIdStr))
+			if (!query.TryGetString("mt", out var mediaLinkName) ||
+				!query.TryGetInt("t", out var tagId))
 				return;
 
-			// 追加タグ情報が取れるならタグを追加
-			if (!int.TryParse(tagIdStr, out var tagId))
-				return;
 
 			// あれば開始時間取得
-			var startTime = 0.0f;
-			if (queryParam.TryGetValue("ti", out var startTimeString))
+			if (!query.TryGetFloat("ti", out var startTime))
 			{
-				float.TryParse(startTimeString, out startTime);
+				startTime = 0.0f;
 			}
 
 			var mediaInfo = UIUtil.GetFileIds(mediaLinkName);
@@ -177,12 +153,9 @@ namespace tagVideoManager
 
 		// パラメータがあればタグリンク削除
 		// 同じカテゴリのタグがない場合はstartTimeを０にして残しておく
-		private static void TryRemoveTagLink(DB db, Dictionary<string, string> queryParam)
+		private static void TryRemoveTagLink(DB db, Query query)
 		{
-			if (!queryParam.TryGetValue("rl", out var tagLinkIdString))
-				return;
-
-			if (!int.TryParse(tagLinkIdString, out var tagLinkId))
+			if (!query.TryGetInt("rl", out var tagLinkId))
 				return;
 
 			// ２つ以上あるなら削除する
@@ -199,14 +172,11 @@ namespace tagVideoManager
 
 
 		// パラメータがあればタグを全て削除
-		private static void TryRemoveTagLinkAll(DB db, Dictionary<string, string> queryParam)
+		private static void TryRemoveTagLinkAll(DB db, Query query)
 		{
 			// 必要なパラメータが存在するか
-			if (!queryParam.TryGetValue("mt", out var mediaLinkName) || 
-				!queryParam.TryGetValue("rla", out var tagIdString))
-				return;
-
-			if (!int.TryParse(tagIdString, out var tagId))
+			if (!query.TryGetString("mt", out var mediaLinkName) || 
+				!query.TryGetInt("rla", out var tagId))
 				return;
 
 			var mediaInfo = UIUtil.GetFileIds(mediaLinkName);

@@ -54,19 +54,6 @@
 		});
 	}
 
-	// 表示のon/off切り替え
-	function toggleVisible(elemId)
-	{
-		const elem = document.getElementById(elemId);
-		if (elem.style.visibility == 'visible')
-		{
-			elem.style.visibility = 'hidden';
-		}
-		else
-		{
-			elem.style.visibility = 'visible';
-		}
-	}
 
 	// 検索ボックスの内容を見てタグリストの表示を更新
 	function updateTagFilterString(enableString, tagPartsClass)

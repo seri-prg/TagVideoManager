@@ -11,7 +11,7 @@ namespace tagVideoManager
 	{
 		// 表示処理
 		// 処理をした場合はnull以外の文字列を返す
-		public virtual string Show(Server owner, string filePath, string query) { return string.Empty; } 
+		public virtual string Show(Server owner, string filePath, Query query) { return string.Empty; } 
 
 	}
 }

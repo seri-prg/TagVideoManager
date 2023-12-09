@@ -107,7 +107,8 @@ namespace tagVideoManager
 
 				if (needSize >= length)
 				{
-					throw new Exception("File Name Buffer size over");
+					builder = new StringBuilder(needSize + 1);
+					needSize = GetFinalPathNameByHandleW(handle2, builder, length, 0);
 				}
 
 				if (resultPath.StartsWith("\\\\?\\UNC\\"))

@@ -1,5 +1,6 @@
 ﻿using DotLiquid;
 using DotLiquid.Util;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -19,7 +20,7 @@ namespace tagVideoManager
 		}
 
 
-		public override string Show(Server server, string filePath, string query)
+		public override string Show(Server server, string filePath, Query query)
 		{
 			var name = Path.GetFileName(filePath);
 
@@ -44,24 +45,44 @@ namespace tagVideoManager
 		}
 
 
+		private static readonly Dictionary<string, string> _typeList = new Dictionary<string, string>
+		{
+			{".webm", "webm"},
+			{".ogm", "ogg"},
+			{".ogv", "ogg"},
+			{".ogg", "ogg"},
+			{".mpeg", "mpeg"},
+		};
+
+		// 拡張子からビデオタイプ取得
+		public static string GetVideoType(string ext)
+		{
+			if (_typeList.TryGetValue(ext, out var result))
+				return result;
+
+			return "mp4";	// ない場合はmp4にしておく
+		}
+
+
 
 		// 
-		public static string Show(Server server, string query)
+		public static string Show(Server server, Query query)
 		{
 			var tmp = GetTemplate(server);
 			var db = server.Db;
-			var mediaLinkName = Utility.GetQueryValue(query, "mt");
+			query.TryGetString("mt", out var mediaLinkName);
 			var ids = UIUtil.GetFileIds(mediaLinkName);
 			var mediaInfo = dbFile.GetMediaInfo(db, ids.volume_serial, ids.file_id);
 			var videoPath = (ids != null)
 						? FileIdHelper.GetFilePath(ids.volume_serial, (long)ids.file_id)
 						: "no path";
 
-
+			var ext = GetVideoType(Path.GetExtension(videoPath));
 
 			var hash = Hash.FromAnonymousObject(new
 			{
 				file_path = videoPath,
+				video_ext = ext,
 				media_id = mediaInfo.id,
 				media_type = mediaInfo.media_type,
 				vr_dome = mediaInfo.vr_dome,
@@ -82,10 +103,10 @@ namespace tagVideoManager
 		/*
 			mt= 対象メディアのfile_id
 		 */
-		public static string GetPlayMenuJson(DB db, string query)
+		public static string GetPlayMenuJson(DB db, Query query)
 		{
 			// クエリから複数のパラメータ取得
-			var mediaLinkName = Utility.GetQueryValue(query, "mt");
+			query.TryGetString("mt", out var mediaLinkName);
 			var mediaInfo = UIUtil.GetFileIds(mediaLinkName);
 
 

@@ -247,6 +247,24 @@ namespace tagVideoManager
 		}
 
 
+		// メディアIDから情報取得。最終的に全てこれにする
+		public static MEDIA_FILE_INFO GetMediaInfo(DB db, long mediaId)
+		{
+			var result = db.Query<MEDIA_FILE_INFO>(
+						@"select 
+							id, 
+							media_type,
+							volume_serial, 
+							file_id,
+							vr_dome,
+							vr_source_type
+						from 
+							media_file 
+						where
+							id=@mediaId", new { mediaId }); 
+			return result.FirstOrDefault();
+		}
+
 
 
 		public static void RemoveMedia(DB db, ulong mediaId)

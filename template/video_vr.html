@@ -1,0 +1,56 @@
+﻿<html>
+<head>
+<link rel="icon" href="data:,">
+<script src="./babylon_6.31.0/babylon.js" charset="UTF8"></script>
+<script src="./lib/vr.js" charset="UTF8"></script>
+
+<style>
+	html, body {
+		overflow: hidden;
+		width: 100%;
+		height: 100%;
+		margin: 0;
+		padding: 0;
+	}
+
+	#renderCanvas {
+		width: 100%;
+		height: 100%;
+		touch-action: none;
+	}
+	
+	#canvasZone {
+		width: 100%;
+		height: 100%;
+	}
+
+</style>
+</head>
+<body>
+<script>
+
+	var _bbrender = null;
+	document.addEventListener('DOMContentLoaded', function() 
+	{
+		let bb = new BBRender();
+		bb.setup("renderCanvas", true, (render)=> {
+			_bbrender = render;
+			_bbrender.play("{{file_id}}.custom_video");
+			_bbrender.setHalf({{vr_dome}} == 180);
+			_bbrender.setVideoModeFromString(
+				{% case vr_source_type %}
+					{% when 1 %} 'MODE_SIDEBYSIDE' 
+					{% when 2 %} 'MODE_TOPBOTTOM' 
+					{% else %} 'MODE_MONOSCOPIC' 
+				{% endcase %}
+			);
+		});
+	});
+
+
+
+</script>
+<title>Tag Video Manager</title>
+<div id="canvasZone"><canvas id="renderCanvas"></canvas></div>
+</body>
+</html>

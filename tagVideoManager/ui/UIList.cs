@@ -25,7 +25,7 @@ namespace tagVideoManager
 		}
 
 
-		public override string Show(Server server, string filePath, string query)
+		public override string Show(Server server, string filePath, Query query)
 		{
 			var name = Path.GetFileName(filePath);
 
@@ -92,9 +92,9 @@ namespace tagVideoManager
 			mt= タグの追加対象メディアのfile_id
 		*/
 		// メディタ１つの情報を更新
-		private static string GetMediaOneJson(DB db, string query)
+		private static string GetMediaOneJson(DB db, Query query)
 		{
-			var mediaLinkName = Utility.GetQueryValue(query, "mt");  // 対象メディア
+			query.TryGetString("mt", out var mediaLinkName);
 			var mediaInfo = UIUtil.GetFileIds(mediaLinkName);
 			var mediaId = dbFile.GetMediaId(db, mediaInfo);
 
@@ -115,16 +115,15 @@ namespace tagVideoManager
 			o= データの表示開始オフセット
 		*/
 		// リスト更新
-		private static string GetMediaListJson(DB db, string query = null)
+		private static string GetMediaListJson(DB db, Query query = null)
 		{
 			// クエリパラメータから有効なタグを取得
 			var enableTags = new List<int>();
 			var offset = 0;
 			if (query != null)
 			{
-				var value = Utility.GetQueryValue(query, "s");
-				enableTags = UIUtil.ParseArrayNum(value);
-				int.TryParse(Utility.GetQueryValue(query, "o"), out offset);
+				query.TryGetArrayInt("s", out enableTags);
+				query.TryGetInt("o", out offset);
 			}
 
 			var mediaJson = $"{{}}";	// データが取得できなかった場合

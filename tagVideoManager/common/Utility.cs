@@ -1,5 +1,8 @@
-﻿using System;
+﻿using QRCoder;
+using System;
 using System.Collections.Generic;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -27,43 +30,5 @@ namespace tagVideoManager
 			return new string(pass);
 		}
 
-		// urlの?移行のパラメータから任意のキーのパラメータ取得
-		public static string GetQueryValue(string query, string needKey)
-		{
-			var keys = query.Split('?', '&');
-
-			foreach (var key in keys)
-			{
-				var keyValue = key.Split('=');
-				if (keyValue.Length != 2)
-					continue;
-
-				// クエリパラメータv=の値を動画の名前にする
-				if (keyValue[0] == needKey)
-				{
-					return keyValue[1];
-				}
-			}
-
-			return string.Empty;
-		}
-
-		// クエリから複数のパラメータ取得
-		public static Dictionary<string, string> GetQueryValues(string query)
-		{
-			var keys = query.Split('?', '&');
-
-			var result = new Dictionary<string, string>();
-			foreach (var key in keys)
-			{
-				var keyValue = key.Split('=');
-				if (keyValue.Length != 2)
-					continue;
-
-				result[keyValue[0]] = keyValue[1];
-			}
-
-			return result;
-		}
 	}
 }

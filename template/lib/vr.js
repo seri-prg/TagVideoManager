@@ -7,18 +7,34 @@ class BBRender {
 	scene = null;
 	sceneToRender = null;
 	videoDome = null;
+	_camera = null;
 
-	static createScene (canvas) {
+	async #createScene (canvas, enableVrMode) {
 		var scene = new BABYLON.Scene(this.engine);
-		var camera = new BABYLON.ArcRotateCamera("Camera", -Math.PI / 2,  Math.PI / 2, 5, BABYLON.Vector3.Zero(), scene);
-		camera.attachControl(canvas, true);
+		// 注視点固定カメラ
+		this._camera = new BABYLON.ArcRotateCamera("Camera", -Math.PI / 2,  Math.PI / 2, 5, BABYLON.Vector3.Zero(), scene);
+		this._camera.attachControl(canvas, true);
+
+		try {
+			// vrモードが有効なら
+			if (enableVrMode) {
+				var vrHelper = scene.createDefaultVRExperience({createDeviceOrientationCamera:true, useXR: true});
+				// need https server
+				// var vrHelper = await scene.createDefaultXRExperienceAsync({});
+			}
+		} catch (e) {
+
+		}
+
 		return scene;
 	};
 
+
 	static createDefaultEngine (canvas) {
-		return new BABYLON.Engine(canvas, true, 
-		{
-			preserveDrawingBuffer: true, stencil: true,  disableWebGL2Support: false
+		return new BABYLON.Engine(canvas, true, {
+			preserveDrawingBuffer: true, 
+			stencil: true,  
+			disableWebGL2Support: false
 		});
 	};
 
@@ -37,17 +53,16 @@ class BBRender {
 		}
 	}
 
-	async initFunction(canvas) {
+	async initFunction(canvas, enableVrMode) {
 		this.engine = await BBRender.asyncEngineCreation(canvas);
 		if (!this.engine) throw 'engine should not be null.';
 		this.engine.runRenderLoop(this.renderLoop.bind(this));
-		this.scene = BBRender.createScene(canvas);
+		this.scene = await this.#createScene(canvas, enableVrMode);
 	};
 
 	play(url)
 	{
-		if (this.videoDome != null)
-		{
+		if (this.videoDome != null) {
 			this.videoDome.dispose(false, true);
 		}
 
@@ -80,6 +95,14 @@ class BBRender {
 		if (this.videoDome == null)
 			return;
 		this.videoDome.halfDome = half;
+
+		if (this._camera != null) {
+			if (half) {
+				this._camera.setPosition(new BABYLON.Vector3(0, 0, -1));
+			} else {
+				this._camera.setPosition(new BABYLON.Vector3(1, 0, 0));
+			}
+		}
 	}
 
 	// zoom(0.0 - 2.0: default 1.0)
@@ -108,12 +131,9 @@ class BBRender {
 	*/
 	setVideoModeFromString(modeStr) {
 		var mode = BABYLON.VideoDome.MODE_MONOSCOPIC;
-		if (modeStr == "MODE_SIDEBYSIDE")
-		{
+		if (modeStr == "MODE_SIDEBYSIDE") {
 			mode = BABYLON.VideoDome.MODE_SIDEBYSIDE;
-		}
-		else if (modeStr == "MODE_TOPBOTTOM")
-		{
+		} else if (modeStr == "MODE_TOPBOTTOM") {
 			mode = BABYLON.VideoDome.MODE_TOPBOTTOM;
 		}
 		// console.log(mode);
@@ -121,23 +141,23 @@ class BBRender {
 	}
 
 
-	setup(canvasName, onReadyCallback = null)
+	setup(canvasName, enableVrMode, onReadyCallback = null)
 	{
 		var canvas = document.getElementById(canvasName);
-		this.initFunction(canvas).then(() => {
+		this.initFunction(canvas, enableVrMode).then(() => {
 			this.sceneToRender = this.scene
 
-			// Resize
-			window.addEventListener("resize", function () {
-				this.engine.resize();
-			}.bind(this));
-
-			if (onReadyCallback != null)
-			{
+			if (onReadyCallback != null) {
 				onReadyCallback(this);
 			}
 
 			this.engine.resize();
+
+			// Resize
+			window.addEventListener("resize", () => {
+				this.engine.resize();
+			});
+
 		});
 
 	}
