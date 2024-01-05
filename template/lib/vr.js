@@ -12,22 +12,60 @@ class BBRender {
 	async #createScene (canvas, enableVrMode) {
 		var scene = new BABYLON.Scene(this.engine);
 		// 注視点固定カメラ
-		this._camera = new BABYLON.ArcRotateCamera("Camera", -Math.PI / 2,  Math.PI / 2, 5, BABYLON.Vector3.Zero(), scene);
-		this._camera.attachControl(canvas, true);
-
-		try {
-			// vrモードが有効なら
-			if (enableVrMode) {
-				var vrHelper = scene.createDefaultVRExperience({createDeviceOrientationCamera:true, useXR: true});
-				// need https server
-				// var vrHelper = await scene.createDefaultXRExperienceAsync({});
-			}
-		} catch (e) {
-
+		if (enableVrMode) {
+			this._camera = new BABYLON.VRDeviceOrientationArcRotateCamera("DevOr_camera", -Math.PI / 2,  Math.PI / 2, 5, BABYLON.Vector3.Zero(), scene);
+			//this._camera = new BABYLON.VRDeviceOrientationFreeCamera("Camera", new BABYLON.Vector3(-6.7, 1.2, -1.3), scene);
+			// this._camera.setTarget(new BABYLON.Vector3(0, 0, 10));
+		} else {
+			this._camera = new BABYLON.ArcRotateCamera("Camera", -Math.PI / 2,  Math.PI / 2, 5, BABYLON.Vector3.Zero(), scene);
 		}
 
+		this._camera.attachControl(canvas, true);
+
+		// this.addTest(scene);
 		return scene;
 	};
+
+
+	addTest(scene) {
+		 // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
+		 var light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+	
+		 //Materials
+		 var redMat = new BABYLON.StandardMaterial("red", scene);
+		 redMat.diffuseColor = new BABYLON.Color3(1, 0, 0);
+		 redMat.emissiveColor = new BABYLON.Color3(1, 0, 0);
+		 redMat.specularColor = new BABYLON.Color3(1, 0, 0);
+		 
+		 var greenMat = new BABYLON.StandardMaterial("green", scene);
+		 greenMat.diffuseColor = new BABYLON.Color3(0, 1, 0);
+		 greenMat.emissiveColor = new BABYLON.Color3(0, 1, 0);
+		 greenMat.specularColor = new BABYLON.Color3(0, 1, 0);
+		 
+		 var blueMat = new BABYLON.StandardMaterial("blue", scene);
+		 blueMat.diffuseColor = new BABYLON.Color3(0, 0, 1);
+		 blueMat.emissiveColor = new BABYLON.Color3(0, 0, 1);
+		 blueMat.specularColor = new BABYLON.Color3(0, 0, 1);
+		 
+		 // Shapes
+		 var plane1 = new BABYLON.Mesh.CreatePlane("plane1", 3, scene, true, BABYLON.Mesh.DOUBLESIDE);
+		 plane1.position.x = -3;
+		 plane1.position.z = 0;
+		 plane1.material = redMat;
+		 
+		 var plane2 = new BABYLON.Mesh.CreatePlane("plane2", 3, scene, true, BABYLON.Mesh.DOUBLESIDE);
+		 plane2.position.x = 3;
+		 plane2.position.z = -1.5;
+		 plane2.material = greenMat;
+		 
+		 var plane3 = new BABYLON.Mesh.CreatePlane("plane3", 3, scene, true, BABYLON.Mesh.DOUBLESIDE);
+		 plane3.position.x = 3;
+		 plane3.position.z = 1.5;
+		 plane3.material = blueMat;
+		 
+		 var ground = BABYLON.Mesh.CreateGround("ground1", 10, 10, 2, scene);
+	}
+
 
 
 	static createDefaultEngine (canvas) {
