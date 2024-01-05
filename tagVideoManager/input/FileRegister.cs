@@ -26,7 +26,7 @@ namespace tagVideoManager
 		// 対象ファイル拡張子
 		public static readonly List<string> _tragetExt = new List<string>()
 		{
-			".mp4", ".flv", ".avi", ".wmv", ".mpeg",".mpg", ".mov"
+			".mp4", ".flv", ".avi", ".wmv", ".mpeg",".mpg", ".mov", ".webm"
 		};
 
 		private System.Timers.Timer _timer = new System.Timers.Timer();
