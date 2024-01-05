@@ -87,13 +87,12 @@ namespace tagVideoManager
 		// サムネイル更新
 		private static void TryUpdateThumbnail(DB db, Query query)
 		{
-			if (!query.TryGetString("mt", out var mediaLinkName) ||
-				!query.TryGetFloat("tht", out var startTime))
+			if (!query.TryGetFloat("tht", out var startTime))
 				return;
 
-			var mediaInfo = UIUtil.GetFileIds(mediaLinkName);
+			var mediaInfo = query.GetFileIds();
 			var mediaId = dbFile.GetMediaId(db, mediaInfo);
-			var filePath = FileIdHelper.GetFilePath(mediaInfo.volume_serial, (long)mediaInfo.file_id);
+			var filePath = mediaInfo.GetFilePath();
 			var miniImage = dbFile.CreateMiniImage(filePath, startTime);
 			dbFile.UpdateMiniImage(db, mediaId, miniImage);
 		}
@@ -134,8 +133,7 @@ namespace tagVideoManager
 		// クエリ文字列からタグリンク追加
 		private static void TryAddTagLink(DB db, Query query)
 		{
-			if (!query.TryGetString("mt", out var mediaLinkName) ||
-				!query.TryGetInt("t", out var tagId))
+			if (!query.TryGetInt("t", out var tagId))
 				return;
 
 
@@ -145,7 +143,7 @@ namespace tagVideoManager
 				startTime = 0.0f;
 			}
 
-			var mediaInfo = UIUtil.GetFileIds(mediaLinkName);
+			var mediaInfo = query.GetFileIds();
 			// メディアにタグを追加
 			dbTag.AddTagLink(db, mediaInfo, tagId, startTime);
 		}
@@ -175,11 +173,10 @@ namespace tagVideoManager
 		private static void TryRemoveTagLinkAll(DB db, Query query)
 		{
 			// 必要なパラメータが存在するか
-			if (!query.TryGetString("mt", out var mediaLinkName) || 
-				!query.TryGetInt("rla", out var tagId))
+			if (!query.TryGetInt("rla", out var tagId))
 				return;
 
-			var mediaInfo = UIUtil.GetFileIds(mediaLinkName);
+			var mediaInfo = query.GetFileIds();
 			var mediaId = dbFile.GetMediaId(db, mediaInfo);
 			dbTag.RemoveTagLink(db, mediaId, tagId);
 		}

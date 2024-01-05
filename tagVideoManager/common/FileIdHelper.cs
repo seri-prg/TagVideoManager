@@ -79,6 +79,8 @@ namespace tagVideoManager
 		public static string GetFilePath(ulong volumeSerialNumber, long fileSystemId)
 		{
 			// FileIDと同じドライブのハンドルが必要。
+			if ((volumeSerialNumber == 0) || (fileSystemId == 0))
+				return "";
 
 			var drive = GetRootDirve(volumeSerialNumber);
 			using var handle = _CreateSafeFileHandle($"{drive}\\");

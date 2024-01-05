@@ -12,7 +12,9 @@ using System.Text;
 using System.Threading;
 using System.Windows.Data;
 using System.Windows.Documents;
+// using System.Windows.Shapes;
 using System.Xml.Linq;
+using static System.Net.Mime.MediaTypeNames;
 // using static System.Net.WebRequestMethods;
 
 namespace tagVideoManager
@@ -47,6 +49,7 @@ namespace tagVideoManager
 
 		// スタートURL
 		public string StartUrl { get { return $"{RootUrl}{UIList.ListHtmlName}"; } }
+//		public string StartUrl { get { return $"{RootUrl}{UIVideoPlayer.TestFileName}"; } }
 
 
 		public Server(DB db)
@@ -258,10 +261,7 @@ namespace tagVideoManager
 
 						var name = Path.GetFileNameWithoutExtension(htmlFileName);
 						var ids = UIUtil.GetFileIds(name);
-						if (ids != null)
-						{
-							WriteBinary(context, dbFile.GetMiniImage(owner.Db, ids.volume_serial, ids.file_id));
-						}
+						WriteBinary(context, dbFile.GetMiniImage(owner.Db, ids));
 					}
 					break;
 				// mediaのサムネイルイメージ
@@ -280,17 +280,68 @@ namespace tagVideoManager
 				// 特殊な拡張子:ファイル名をFileIDとしてロードしたファイルを動画として返す
 				case "custom_video":
 					{
+#if false
+						Trace.WriteLine($"[{htmlFileName}] ======");
+						foreach (var item in context.Request.Headers.AllKeys)
+						{
+							var value = context.Request.Headers[item];
+							Trace.WriteLine($"{item} : {value}");
+						}
+#endif
+
 						var name = Path.GetFileNameWithoutExtension(htmlFileName);
 						var ids = UIUtil.GetFileIds(name);
-						if (ids != null)
+						if (ids.IsValid)
 						{
-							var videoPath = FileIdHelper.GetFilePath(ids.volume_serial, (long)ids.file_id);
-
+							var videoPath = ids.GetFilePath();
 							var outExt = GetExtOnly(Path.GetExtension(videoPath));  // ファイルの拡張子使う
 							// 動画の中身見るのが正解っぽい。
 							// https://www.iana.org/assignments/media-types/media-types.xhtml#video
 							response.ContentType = $"video/{outExt}";
 							WriteBinary(context, videoPath);
+						}
+						else
+						{
+							response.Close();
+						}
+					}
+					break;
+
+				case "test_video":
+					{
+						response.ContentType = $"video/webm";
+
+						var name = Path.GetFileNameWithoutExtension(htmlFileName);
+						var videoInfo = name.Split('-');
+						if (videoInfo.Length != 3)
+						{
+							response.Close();
+							break;
+						}
+						// 開始時間
+						if (!int.TryParse(videoInfo[1], out var startSecond))
+						{
+							response.Close();
+							break;
+						}
+
+						// 動画時間
+						if (!int.TryParse(videoInfo[2], out var timeSpanSecond))
+						{
+							response.Close();
+							break;
+						}
+
+						using (var ms = VideoConberter.WriteMemory(
+							@"C:\Users\sedy1\Desktop\media_sample\particle_show2_fire.avi", startSecond, timeSpanSecond))
+						{
+							if (ms == null)
+							{
+								response.Close();
+								break;
+							}
+
+							WriteBinary(context, ms);
 						}
 					}
 					break;
@@ -300,12 +351,11 @@ namespace tagVideoManager
 					{
 						var name = Path.GetFileNameWithoutExtension(htmlFileName);
 						var ids = UIUtil.GetFileIds(name);
-						if (ids != null)
+						if (ids.IsValid)
 						{
-							var videoPath = FileIdHelper.GetFilePath(ids.volume_serial, (long)ids.file_id);
 							var pi = new ProcessStartInfo()
 							{
-								FileName = videoPath,
+								FileName = ids.GetFilePath(),
 								UseShellExecute = true,
 							};
 							Process.Start(pi);
@@ -317,14 +367,16 @@ namespace tagVideoManager
 						// ReturnInternalError(response, new Exception("サポート外の動画です。"));
 					}
 					break;
+
+
 				case "direct_open":
 					{
 						// ファイルがあるフォルダを開く
 						var name = Path.GetFileNameWithoutExtension(htmlFileName);
 						var ids = UIUtil.GetFileIds(name);
-						if (ids != null)
+						if (ids.IsValid)
 						{
-							var videoPath = FileIdHelper.GetFilePath(ids.volume_serial, (long)ids.file_id);
+							var videoPath = ids.GetFilePath();
 							var fi = new FileInfo(videoPath);
 							var pi = new ProcessStartInfo()
 							{
@@ -429,7 +481,6 @@ namespace tagVideoManager
 				fs.Position = range.Item1;
 				response.StatusCode = (int)HttpStatusCode.PartialContent;
 				response.AddHeader("Content-Range", $"bytes {range.Item1}-{range.Item1 + total - 1}/{fs.Length}");
-				//response.ContentLength64 = total;
 
 				// Trace.WriteLine($"Content-Range bytes {range.Item1}-{range.Item1 + total - 1}/{fs.Length}");
 				// Trace.WriteLine($"ContentLength64 [{total}]");
@@ -452,7 +503,7 @@ namespace tagVideoManager
 		private static void WriteBinary(HttpListenerContext context, byte[] buffer)
 		{
 			// 出力できるものがない
-			if (buffer == null)
+			if ((buffer == null) || (buffer.Length == 0))
 			{
 				context.Response.Close();
 				return;

@@ -31,19 +31,22 @@ namespace tagVideoManager
 		}
 
 		// リンク用の文字列からシリアルボリュームとファイルIDを取得
-		public static MEDIA_FILE_INFO GetFileIds(string linkName)
+		public static MEDIA_FILE_IDS GetFileIds(string linkName)
 		{
+			if (string.IsNullOrEmpty(linkName))
+				return MEDIA_FILE_IDS.Empty;
+
 			var parts = linkName.Split('_');
 			if (parts.Length != 2)
-				return null;
+				return MEDIA_FILE_IDS.Empty;
 
 			if (!ulong.TryParse(parts[0], out var volumeSerial))
-				return null;
+				return MEDIA_FILE_IDS.Empty;
 
 			if (!ulong.TryParse(parts[1], out var fileId))
-				return null;
+				return MEDIA_FILE_IDS.Empty;
 
-			return new MEDIA_FILE_INFO() { volume_serial = volumeSerial, file_id = fileId };
+			return new MEDIA_FILE_IDS() { volume_serial = volumeSerial, file_id = fileId };
 		}
 
 		public static string GetTimeString(float time)

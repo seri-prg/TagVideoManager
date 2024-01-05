@@ -49,6 +49,16 @@ namespace tagVideoManager
 		}
 
 
+		// メディアID取得
+		public dbFile.MEDIA_FILE_IDS GetFileIds()
+		{
+			if (!this.TryGetString("mt", out var mediaLinkName))
+				return dbFile.MEDIA_FILE_IDS.Empty;
+
+			return UIUtil.GetFileIds(mediaLinkName);
+		}
+
+
 		public bool TryGetString(string key, out string value) 
 		{
 			value = null;

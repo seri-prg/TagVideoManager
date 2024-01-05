@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Windows.Shell;
 using videoEditor;
 using static tagVideoManager.dbFile;
 
@@ -12,21 +13,18 @@ namespace tagVideoManager
 	internal class UIVideoPlayer : UIBase
 	{
 		public const string TmpFileName = "video_player.html";
-
-		public static Template GetTemplate(Server owner)
-		{
-			var tmpPath = Path.Combine(owner.RootPath, TmpFileName);
-			return Template.Parse(File.ReadAllText(tmpPath));
-		}
+		public const string TestFileName = "test.html";
 
 
 		public override string Show(Server server, string filePath, Query query)
 		{
 			var name = Path.GetFileName(filePath);
 
-			if (name == TmpFileName)
+			if ((name == TmpFileName) ||
+				(name == TestFileName))	// 表示テスト
 			{
-				return Show(server, query);
+				var basePath = Path.Combine(server.RootPath, name);
+				return Show(server, query, basePath);
 			}
 
 			// タグリスト更新要求
@@ -66,16 +64,14 @@ namespace tagVideoManager
 
 
 		// 
-		public static string Show(Server server, Query query)
+		public static string Show(Server server, Query query, string basePath)
 		{
-			var tmp = GetTemplate(server);
 			var db = server.Db;
 			query.TryGetString("mt", out var mediaLinkName);
+
 			var ids = UIUtil.GetFileIds(mediaLinkName);
-			var mediaInfo = dbFile.GetMediaInfo(db, ids.volume_serial, ids.file_id);
-			var videoPath = (ids != null)
-						? FileIdHelper.GetFilePath(ids.volume_serial, (long)ids.file_id)
-						: "no path";
+			var mediaInfo = dbFile.GetMediaInfo(db, ids);
+			var videoPath = ids.GetFilePath();
 
 			var ext = GetVideoType(Path.GetExtension(videoPath));
 
@@ -93,6 +89,7 @@ namespace tagVideoManager
 			});
 			server.Localize.AddText(hash); // 翻訳データ追加
 
+			var tmp = Template.Parse(File.ReadAllText(basePath));
 			return tmp.Render(hash);
 		}
 
@@ -110,13 +107,13 @@ namespace tagVideoManager
 			var mediaInfo = UIUtil.GetFileIds(mediaLinkName);
 
 
-			var tagInfo = dbTag.GetTagLinkInfo(db, mediaInfo.volume_serial, mediaInfo.file_id);
+			var tagInfo = dbTag.GetTagLinkInfo(db, mediaInfo);
 
 			// タグ用の情報がない場合は付与
 			if (!tagInfo.Any(d => d.Value.First().tag_type == (int)dbTag.tag_type.digest))
 			{
 				CreateDigest(db, mediaInfo);	// ダイジェスト作成
-				tagInfo = dbTag.GetTagLinkInfo(db, mediaInfo.volume_serial, mediaInfo.file_id);　// 情報を再取得
+				tagInfo = dbTag.GetTagLinkInfo(db, mediaInfo);　// 情報を再取得
 			}
 
 			tagInfo.First().Value.First();
@@ -150,11 +147,11 @@ namespace tagVideoManager
 		}
 
 		// ダイジェスト作成
-		private static void CreateDigest(DB db, MEDIA_FILE_INFO mediaInfo)
+		private static void CreateDigest(DB db, MEDIA_FILE_IDS mediaInfo)
 		{
 			var tagId = dbTag.GetDigestTagId(db);
 			var mediaId = dbFile.GetMediaId(db, mediaInfo);
-			var filePath = FileIdHelper.GetFilePath(mediaInfo.volume_serial, (long)mediaInfo.file_id);
+			var filePath = mediaInfo.GetFilePath();
 
 			using (var video = new VideoController(filePath))
 			{

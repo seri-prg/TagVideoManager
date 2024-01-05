@@ -95,7 +95,7 @@ namespace tagVideoManager
 		private static string GetMediaOneJson(DB db, Query query)
 		{
 			query.TryGetString("mt", out var mediaLinkName);
-			var mediaInfo = UIUtil.GetFileIds(mediaLinkName);
+			var mediaInfo = query.GetFileIds();
 			var mediaId = dbFile.GetMediaId(db, mediaInfo);
 
 			// タグ情報を取得

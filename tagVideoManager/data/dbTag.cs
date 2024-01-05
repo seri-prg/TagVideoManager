@@ -157,7 +157,7 @@ namespace tagVideoManager
 
 
 		// 特定のメディアファイルのタグを名前付きで取得
-		public static Dictionary<string, List<TAG_LINK_NAME_INFO>> GetTagLinkInfo(DB db, ulong serialVlume, ulong file_id)
+		public static Dictionary<string, List<TAG_LINK_NAME_INFO>> GetTagLinkInfo(DB db, MEDIA_FILE_IDS ids)
 		{
 			return db.Query<TAG_LINK_NAME_INFO>(
 			   @$"select 
@@ -177,7 +177,7 @@ namespace tagVideoManager
 							(select id from media_file where file_id = @file_id and volume_serial = @volume_serial)
 				order by
 					tag_list.tag_type, tag_link.tag_id, tag_link.start_time",
-			   new { file_id  = file_id, volume_serial = serialVlume })
+			   new { file_id  = ids.file_id, volume_serial = ids.volume_serial })
 					.GroupBy(g => g.tag_name)
 					.ToDictionary(g => g.Key, g => g.ToList());	// タグ名でグループ化
 		}
@@ -201,10 +201,11 @@ namespace tagVideoManager
 		}
 
 		// 同じデータが無ければメディアにタグを追加
-		public static void AddTagLink(DB db, MEDIA_FILE_INFO mediaInfo, int tagId, float startTime)
+		public static void AddTagLink(DB db, MEDIA_FILE_IDS mediaIds, int tagId, float startTime)
 		{
-			var mediaId = dbFile.GetMediaId(db, mediaInfo);
-			var filePath = FileIdHelper.GetFilePath(mediaInfo.volume_serial, (long)mediaInfo.file_id);
+			var mediaId = dbFile.GetMediaId(db, mediaIds);
+			var filePath = mediaIds.GetFilePath();
+
 			byte[] miniImage = null;
 
 			// ほぼ０の場合はリンク画像は必要ない

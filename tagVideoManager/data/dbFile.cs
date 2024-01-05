@@ -5,30 +5,65 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using System.Windows.Shell;
 using videoEditor;
 using static tagVideoManager.dbTableMaker;
+using static tagVideoManager.FileIdHelper;
 
 namespace tagVideoManager
 {
 	// DBのファイル１つに対する操作
-	internal class dbFile
+	public class dbFile
 	{
 		public const int _miniImageFrame = 200;    // アイコンに使う画像のフレーム
 		// サムネイルの画像サイズ
 		private const int _miniImageW = 160;
 		private const int _miniImageH = 100;
 
-		// 
-		public class MEDIA_FILE_INFO
+
+		public class MEDIA_FILE_IDS
 		{
-			public long id;
-			public ulong volume_serial; // ボリュームシリアルナンバー
-			public ulong file_id;	// ファイル固有ID
-			public byte[] mini_image;   // サムネイル
-			public int media_type;
-			public int vr_dome;
-			public int vr_source_type;
+			public ulong volume_serial = 0; // ボリュームシリアルナンバー
+			public ulong file_id = 0;   // ファイル固有ID
+
+
+			public readonly static MEDIA_FILE_IDS Empty = new MEDIA_FILE_IDS();
+
+			public static MEDIA_FILE_IDS Create(FileIdInfo ids)
+			{
+				return new MEDIA_FILE_IDS()
+				{
+					volume_serial = ids.volumeSerial,
+					file_id = ids.fileId
+				};
+			}
+
+			// 値が入っているか
+			public bool IsValid { get { return (volume_serial != 0) && (file_id != 0); } }
+
+			// ファイルパス取得
+			public string GetFilePath()
+			{
+				try
+				{
+					return FileIdHelper.GetFilePath(volume_serial, (long)file_id);
+				}
+				catch (Exception)
+				{
+					return "no path";
+				}
+			}
+		}
+
+		// 
+		public class MEDIA_FILE_INFO : MEDIA_FILE_IDS
+		{
+			public long id = 0;
+			public byte[] mini_image = new byte[] { };   // サムネイル
+			public int media_type = 0;
+			public int vr_dome = 0;
+			public int vr_source_type = 0;
 		}
 
 
@@ -42,7 +77,7 @@ namespace tagVideoManager
 
 			// File IDを取得
 			var idInfo = FileIdHelper.GetFileId(filePath);
-			var mediaId = GetMediaId(db, idInfo.volumeSerial, idInfo.fileId);
+			var mediaId = GetMediaId(db, MEDIA_FILE_IDS.Create(idInfo));
 
 			// 既に登録済ならそれを返す
 			if (mediaId > 0)
@@ -66,7 +101,7 @@ namespace tagVideoManager
 					create_time = idInfo.createTime
 				}});
 
-			return GetMediaId(db, idInfo.volumeSerial, idInfo.fileId);
+			return GetMediaId(db, MEDIA_FILE_IDS.Create(idInfo));
 		}
 
 		// サムネイル更新
@@ -200,7 +235,7 @@ namespace tagVideoManager
 		}
 
 		// 任意のファイルIDのサムネイル画像を取得
-		public static byte[] GetMiniImage(DB db, ulong serialNumber, ulong fileId)
+		public static byte[] GetMiniImage(DB db, MEDIA_FILE_IDS mediaId)
 		{
 			var result = db.Query<MEDIA_FILE_INFO>(
 						$@"select 
@@ -208,8 +243,8 @@ namespace tagVideoManager
 						from 
 							media_file 
 						where
-							volume_serial='{serialNumber}' and 
-							file_id ='{fileId}'");
+							volume_serial='{mediaId.volume_serial}' and 
+							file_id ='{mediaId.file_id}'");
 			var data = result.FirstOrDefault();
 			if (data == null)
 				return null;
@@ -218,19 +253,14 @@ namespace tagVideoManager
 		}
 
 		// メディアID取得
-		public static ulong GetMediaId(DB db, MEDIA_FILE_INFO mediaInfo)
+		public static ulong GetMediaId(DB db, MEDIA_FILE_IDS mediaId)
 		{
-			return GetMediaId(db, mediaInfo.volume_serial, mediaInfo.file_id);
-		}
-
-		public static ulong GetMediaId(DB db, ulong volumeSerial, ulong fileId)
-		{
-			var info = GetMediaInfo(db, volumeSerial, fileId);
+			var info = GetMediaInfo(db, mediaId);
 			return (info == null) ? 0 : (ulong)info.id;
 		}
 
 
-		public static MEDIA_FILE_INFO GetMediaInfo(DB db, ulong volumeSerial, ulong fileId)
+		public static MEDIA_FILE_INFO GetMediaInfo(DB db, MEDIA_FILE_IDS mediaId)
 		{
 			var result = db.Query<MEDIA_FILE_INFO>(
 						$@"select 
@@ -242,8 +272,10 @@ namespace tagVideoManager
 							media_file 
 						where
 							volume_serial=@volumeSerial and 
-							file_id =@fileId", new { volumeSerial, fileId });
-			return result.FirstOrDefault();
+							file_id =@fileId", new { volumeSerial = mediaId.volume_serial, fileId = mediaId.file_id});
+			var retVal = result.FirstOrDefault();
+
+			return (retVal == null) ? new MEDIA_FILE_INFO() : retVal;
 		}
 
 
